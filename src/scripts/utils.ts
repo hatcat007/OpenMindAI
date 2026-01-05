@@ -5,8 +5,10 @@
 import { existsSync, mkdirSync, unlinkSync, renameSync } from "node:fs";
 import { dirname } from "node:path";
 
-type CreateFn = (path: string, kind: string) => Promise<void>;
-type UseFn = (kind: string, path: string) => Promise<unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CreateFn = (path: string, kind: any) => Promise<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UseFn = (kind: any, path: string) => Promise<any>;
 
 /**
  * Create a fresh memory file at the given path
