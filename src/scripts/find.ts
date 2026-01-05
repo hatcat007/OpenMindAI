@@ -5,8 +5,8 @@
  * Search memories using the SDK (no CLI dependency)
  */
 
-import { existsSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
+import { openMemorySafely } from "./utils";
 
 // Dynamic import for SDK
 async function loadSDK() {
@@ -30,19 +30,17 @@ async function main() {
   // Load SDK dynamically
   const { use, create } = await loadSDK();
 
-  // Auto-create if doesn't exist
-  if (!existsSync(memoryPath)) {
-    console.log("No memory file found. Creating new memory at:", memoryPath);
-    const memoryDir = dirname(memoryPath);
-    mkdirSync(memoryDir, { recursive: true });
-    await create(memoryPath, "basic");
+  // Open memory safely (handles corrupted files)
+  const { memvid, isNew } = await openMemorySafely(memoryPath, use, create);
+
+  if (isNew || !memvid) {
     console.log("✅ Memory initialized! No memories to search yet.\n");
     process.exit(0);
   }
 
   try {
-    const memvid = await use("basic", memoryPath);
-    const results = await memvid.find(query, { k: limit });
+    // Use lexical-only search with mode: "lex" for fast retrieval
+    const results = await (memvid as any).find(query, { k: limit, mode: "lex" });
 
     // SDK returns { hits: [...], context: ..., total_hits: ... }
     const hits = results.hits || [];

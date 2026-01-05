@@ -1,6 +1,6 @@
 {
-  "name": "memvid-mind",
-  "version": "1.0.6",
+  "name": "claude-brain",
+  "version": "1.0.7",
   "description": "Give Claude Code photographic memory in ONE portable file",
   "type": "module",
   "main": "dist/index.js",
@@ -37,14 +37,14 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/memvid/memvid-mind.git"
+    "url": "git+https://github.com/memvid/claude-brain.git"
   },
   "homepage": "https://memvid.com",
   "bugs": {
-    "url": "https://github.com/memvid/memvid-mind/issues"
+    "url": "https://github.com/memvid/claude-brain/issues"
   },
   "dependencies": {
-    "@memvid/sdk": "^2.0.0"
+    "@memvid/sdk": "^2.0.146"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

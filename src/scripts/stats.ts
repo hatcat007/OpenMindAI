@@ -5,8 +5,9 @@
  * Get memory statistics using the SDK (no CLI dependency)
  */
 
-import { existsSync, statSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { statSync } from "node:fs";
+import { resolve } from "node:path";
+import { openMemorySafely } from "./utils";
 
 // Dynamic import for SDK
 async function loadSDK() {
@@ -29,17 +30,25 @@ async function main() {
   // Load SDK dynamically
   const { use, create } = await loadSDK();
 
-  // Auto-create if doesn't exist
-  if (!existsSync(memoryPath)) {
-    console.log("No memory file found. Creating new memory at:", memoryPath);
-    const memoryDir = dirname(memoryPath);
-    mkdirSync(memoryDir, { recursive: true });
-    await create(memoryPath, "basic");
+  // Open memory safely (handles corrupted files)
+  const { memvid, isNew } = await openMemorySafely(memoryPath, use, create);
+
+  if (isNew) {
     console.log("✅ Memory initialized! Stats will appear as you work.\n");
   }
 
+  if (!memvid) {
+    // Memory was just created, open it to get stats
+    const newMemvid = await use("basic", memoryPath);
+    await showStats(newMemvid as any, memoryPath);
+    return;
+  }
+
+  await showStats(memvid as any, memoryPath);
+}
+
+async function showStats(memvid: any, memoryPath: string) {
   try {
-    const memvid = await use("basic", memoryPath);
     const stats = await memvid.stats();
     const fileStats = statSync(memoryPath);
 
@@ -51,19 +60,24 @@ async function main() {
     console.log(`📊 Total Frames: ${stats.frame_count || 0}`);
     console.log(`💾 File Size: ${formatBytes(fileStats.size)}`);
 
-    if (stats.capacity_bytes && typeof stats.capacity_bytes === 'number') {
+    if (stats.capacity_bytes && typeof stats.capacity_bytes === "number") {
       const usagePercent = ((fileStats.size / stats.capacity_bytes) * 100).toFixed(1);
       console.log(`📈 Capacity Used: ${usagePercent}%`);
     }
 
     // Get timeline for recent activity
-    const timeline = await memvid.timeline({ limit: 1, reverse: true });
-    if (timeline.frames && timeline.frames.length > 0) {
-      const latest = timeline.frames[0];
-      const latestDate = latest.metadata?.timestamp
-        ? new Date(latest.metadata.timestamp as number).toLocaleString()
-        : "Unknown";
-      console.log(`🕐 Latest Memory: ${latestDate}`);
+    try {
+      const timeline = await memvid.timeline({ limit: 1, reverse: true });
+      const frames = Array.isArray(timeline) ? timeline : timeline.frames || [];
+      if (frames.length > 0) {
+        const latest = frames[0];
+        const latestDate = latest.timestamp
+          ? new Date(latest.timestamp * 1000).toLocaleString()
+          : "Unknown";
+        console.log(`🕐 Latest Memory: ${latestDate}`);
+      }
+    } catch {
+      // Timeline might not be available
     }
 
     console.log("\n═══════════════════════════════════════");

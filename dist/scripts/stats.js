@@ -1,7 +1,51 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, statSync } from 'fs';
+import { existsSync, statSync, mkdirSync, renameSync, unlinkSync } from 'fs';
 import { resolve, dirname } from 'path';
 
+async function createFreshMemory(memoryPath, create) {
+  const memoryDir = dirname(memoryPath);
+  mkdirSync(memoryDir, { recursive: true });
+  await create(memoryPath, "basic");
+}
+function isCorruptedMemoryError(error) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  return errorMessage.includes("Deserialization") || errorMessage.includes("UnexpectedVariant") || errorMessage.includes("Invalid") || errorMessage.includes("corrupt") || errorMessage.includes("version mismatch");
+}
+async function handleCorruptedMemory(memoryPath, create) {
+  console.log(
+    "\u26A0\uFE0F  Memory file is corrupted or incompatible. Creating fresh memory..."
+  );
+  const backupPath = `${memoryPath}.backup-${Date.now()}`;
+  try {
+    renameSync(memoryPath, backupPath);
+    console.log(`   Old file backed up to: ${backupPath}`);
+  } catch {
+    try {
+      unlinkSync(memoryPath);
+    } catch {
+    }
+  }
+  await createFreshMemory(memoryPath, create);
+}
+async function openMemorySafely(memoryPath, use, create) {
+  if (!existsSync(memoryPath)) {
+    console.log("No memory file found. Creating new memory at:", memoryPath);
+    await createFreshMemory(memoryPath, create);
+    return { memvid: null, isNew: true };
+  }
+  try {
+    const memvid = await use("basic", memoryPath);
+    return { memvid, isNew: false };
+  } catch (openError) {
+    if (isCorruptedMemoryError(openError)) {
+      await handleCorruptedMemory(memoryPath, create);
+      return { memvid: null, isNew: true };
+    }
+    throw openError;
+  }
+}
+
+// src/scripts/stats.ts
 async function loadSDK() {
   return await import('@memvid/sdk');
 }
@@ -16,15 +60,19 @@ async function main() {
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
   const memoryPath = resolve(projectDir, ".claude/mind.mv2");
   const { use, create } = await loadSDK();
-  if (!existsSync(memoryPath)) {
-    console.log("No memory file found. Creating new memory at:", memoryPath);
-    const memoryDir = dirname(memoryPath);
-    mkdirSync(memoryDir, { recursive: true });
-    await create(memoryPath, "basic");
+  const { memvid, isNew } = await openMemorySafely(memoryPath, use, create);
+  if (isNew) {
     console.log("\u2705 Memory initialized! Stats will appear as you work.\n");
   }
+  if (!memvid) {
+    const newMemvid = await use("basic", memoryPath);
+    await showStats(newMemvid, memoryPath);
+    return;
+  }
+  await showStats(memvid, memoryPath);
+}
+async function showStats(memvid, memoryPath) {
   try {
-    const memvid = await use("basic", memoryPath);
     const stats = await memvid.stats();
     const fileStats = statSync(memoryPath);
     console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
@@ -37,11 +85,15 @@ async function main() {
       const usagePercent = (fileStats.size / stats.capacity_bytes * 100).toFixed(1);
       console.log(`\u{1F4C8} Capacity Used: ${usagePercent}%`);
     }
-    const timeline = await memvid.timeline({ limit: 1, reverse: true });
-    if (timeline.frames && timeline.frames.length > 0) {
-      const latest = timeline.frames[0];
-      const latestDate = latest.metadata?.timestamp ? new Date(latest.metadata.timestamp).toLocaleString() : "Unknown";
-      console.log(`\u{1F550} Latest Memory: ${latestDate}`);
+    try {
+      const timeline = await memvid.timeline({ limit: 1, reverse: true });
+      const frames = Array.isArray(timeline) ? timeline : timeline.frames || [];
+      if (frames.length > 0) {
+        const latest = frames[0];
+        const latestDate = latest.timestamp ? new Date(latest.timestamp * 1e3).toLocaleString() : "Unknown";
+        console.log(`\u{1F550} Latest Memory: ${latestDate}`);
+      }
+    } catch {
     }
     console.log("\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
   } catch (error) {

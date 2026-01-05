@@ -1,13 +1,13 @@
 <div align="center">
 
-# 🧠 memvid-mind
+# 🧠 Claude Mind
 
 ### **Claude Code finally remembers.**
 
 *One file. Instant recall. Zero config.*
 
-[![npm version](https://img.shields.io/npm/v/memvid-mind.svg)](https://www.npmjs.com/package/memvid-mind)
-[![GitHub stars](https://img.shields.io/github/stars/memvid/memvid-mind?style=social)](https://github.com/memvid/memvid-mind)
+[![npm version](https://img.shields.io/npm/v/claude-brain.svg)](https://www.npmjs.com/package/claude-brain)
+[![GitHub stars](https://img.shields.io/github/stars/memvid/claude-brain?style=social)](https://github.com/memvid/claude-brain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [Installation](#-installation) • [How it Works](#-how-it-works) • [Commands](#-commands) • [FAQ](#-faq)
@@ -65,8 +65,7 @@ git config --global url."https://github.com/".insteadOf "git@github.com:"
 
 Then in Claude Code:
 ```
-/plugin marketplace add memvid/memvid-mind
-/plugin install memvid-mind
+/plugin add claude-brain
 ```
 
 Restart Claude Code. **Done.**
@@ -116,7 +115,7 @@ your-project/
 
 ## ⚡ Endless Mode
 
-Claude hits context limits fast. memvid-mind compresses tool outputs ~20x:
+Claude hits context limits fast. Claude Mind compresses tool outputs ~20x:
 
 ```
 Before:  Read (8K) + Edit (4K) + Bash (12K) = 24K tokens gone
@@ -225,6 +224,6 @@ We love contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **MIT License** • Built on [memvid](https://github.com/memvid/memvid) — the single-file memory engine
 
-[Report Bug](https://github.com/memvid/memvid-mind/issues) • [Request Feature](https://github.com/memvid/memvid-mind/issues)
+[Report Bug](https://github.com/memvid/claude-brain/issues) • [Request Feature](https://github.com/memvid/claude-brain/issues)
 
 </div>

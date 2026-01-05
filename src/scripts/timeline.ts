@@ -5,8 +5,8 @@
  * View recent memories using the SDK (no CLI dependency)
  */
 
-import { existsSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
+import { openMemorySafely } from "./utils";
 
 // Dynamic import for SDK
 async function loadSDK() {
@@ -24,22 +24,20 @@ async function main() {
   // Load SDK dynamically
   const { use, create } = await loadSDK();
 
-  // Auto-create if doesn't exist
-  if (!existsSync(memoryPath)) {
-    console.log("No memory file found. Creating new memory at:", memoryPath);
-    const memoryDir = dirname(memoryPath);
-    mkdirSync(memoryDir, { recursive: true });
-    await create(memoryPath, "basic");
+  // Open memory safely (handles corrupted files)
+  const { memvid, isNew } = await openMemorySafely(memoryPath, use, create);
+
+  if (isNew || !memvid) {
     console.log("✅ Memory initialized! No memories to show yet.\n");
     process.exit(0);
   }
 
   try {
-    const memvid = await use("basic", memoryPath);
-    const timeline = await memvid.timeline({ limit, reverse: true });
+    const mv = memvid as any;
+    const timeline = await mv.timeline({ limit, reverse: true });
 
     // SDK returns array directly or { frames: [...] }
-    const frames = Array.isArray(timeline) ? timeline : (timeline.frames || []);
+    const frames = Array.isArray(timeline) ? timeline : timeline.frames || [];
 
     if (frames.length === 0) {
       console.log("No memories yet. Start using Claude to build your memory!");

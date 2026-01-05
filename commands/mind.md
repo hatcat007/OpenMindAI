@@ -1,10 +1,10 @@
 ---
-description: Manage Claude's persistent memory stored in .claude/mind.mv2
+description: Claude Mind - Manage Claude's persistent memory stored in .claude/mind.mv2
 argument-hint: [action] [query]
 allowed-tools: Read, Bash
 ---
 
-# Mind Command
+# Claude Mind
 
 Interact with Claude's persistent memory stored in `.claude/mind.mv2`.
 

@@ -7,13 +7,10 @@
   },
   "plugins": [
     {
-      "name": "memvid-mind",
-      "description": "Give Claude Code photographic memory in ONE portable file",
-      "version": "1.0.6",
-      "source": {
-        "source": "github",
-        "repo": "memvid/memvid-mind"
-      }
+      "name": "mind",
+      "description": "Claude Brain - Give Claude photographic memory in ONE portable file",
+      "version": "1.0.7",
+      "source": "./"
     }
   ]
 }
