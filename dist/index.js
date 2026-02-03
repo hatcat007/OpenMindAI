@@ -270,29 +270,37 @@ function createStorage(options) {
 
 // src/config.ts
 import { join } from "path";
-import { mkdirSync } from "fs";
+import { mkdirSync, readFileSync } from "fs";
 var DEFAULT_CONFIG = {
   storagePath: ".opencode/mind.mv2",
   autoInitialize: true,
   debug: false
 };
-function loadConfig(ctx) {
-  const userConfig = ctx.config || {};
-  const envConfig = {};
+function loadConfig(directory) {
+  let config = { ...DEFAULT_CONFIG };
+  try {
+    const configPath = join(directory, "opencode.json");
+    const fileContent = readFileSync(configPath, "utf-8");
+    const opencodeConfig = JSON.parse(fileContent);
+    const pluginConfig = opencodeConfig["opencode-brain"];
+    if (pluginConfig) {
+      config = {
+        ...config,
+        ...pluginConfig
+      };
+    }
+  } catch {
+  }
   if (process.env.OPENCODE_BRAIN_STORAGE_PATH) {
-    envConfig.storagePath = process.env.OPENCODE_BRAIN_STORAGE_PATH;
+    config.storagePath = process.env.OPENCODE_BRAIN_STORAGE_PATH;
   }
   if (process.env.OPENCODE_BRAIN_DEBUG) {
-    envConfig.debug = process.env.OPENCODE_BRAIN_DEBUG === "true";
+    config.debug = process.env.OPENCODE_BRAIN_DEBUG === "true";
   }
   if (process.env.OPENCODE_BRAIN_AUTO_INIT) {
-    envConfig.autoInitialize = process.env.OPENCODE_BRAIN_AUTO_INIT !== "false";
+    config.autoInitialize = process.env.OPENCODE_BRAIN_AUTO_INIT !== "false";
   }
-  return {
-    storagePath: envConfig.storagePath ?? userConfig.storagePath ?? DEFAULT_CONFIG.storagePath,
-    autoInitialize: envConfig.autoInitialize ?? userConfig.autoInitialize ?? DEFAULT_CONFIG.autoInitialize,
-    debug: envConfig.debug ?? userConfig.debug ?? DEFAULT_CONFIG.debug
-  };
+  return config;
 }
 function getStoragePath(worktree, config) {
   const storagePath = config.storagePath || DEFAULT_CONFIG.storagePath;
@@ -797,12 +805,7 @@ var OpencodeBrainPlugin = async ({
   directory,
   worktree
 }) => {
-  const pluginConfig = client.config?.["opencode-brain"] || {};
-  const config = loadConfig({
-    directory,
-    worktree,
-    config: pluginConfig
-  });
+  const config = loadConfig(directory);
   const projectPath = worktree || directory;
   const storagePath = getStoragePath(projectPath, config);
   let currentSessionId = "unknown";
@@ -844,11 +847,19 @@ var OpencodeBrainPlugin = async ({
     try {
       const stats = storage.stats();
       client.app.log({
-        message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`
+        }
       });
     } catch {
       client.app.log({
-        message: `[opencode-brain] Storage initialized at ${storagePath}`
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath}`
+        }
       });
     }
   }
@@ -864,7 +875,11 @@ var OpencodeBrainPlugin = async ({
       currentSessionId = session.id;
       if (config.debug) {
         client.app.log({
-          message: `[opencode-brain] Session ${session.id} started`
+          body: {
+            service: "opencode-brain",
+            level: "info",
+            message: `[opencode-brain] Session ${session.id} started`
+          }
         });
       }
     },

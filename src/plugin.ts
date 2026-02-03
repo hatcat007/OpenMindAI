@@ -59,23 +59,9 @@ export const OpencodeBrainPlugin: Plugin = async ({
   client,
   directory,
   worktree,
-}: {
-  client: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    config?: Record<string, any>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    app: { log: (data: any) => void };
-  };
-  directory: string;
-  worktree?: string;
 }) => {
-  // Load configuration with defaults
-  const pluginConfig = client.config?.["opencode-brain"] || {};
-  const config = loadConfig({
-    directory,
-    worktree,
-    config: pluginConfig as Record<string, unknown>,
-  });
+  // Load configuration with defaults (reads from file directly)
+  const config = loadConfig(directory);
 
   // Determine storage path based on worktree (or directory as fallback)
   const projectPath = worktree || directory;
@@ -133,11 +119,19 @@ export const OpencodeBrainPlugin: Plugin = async ({
     try {
       const stats = storage.stats();
       client.app.log({
-        message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`,
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`,
+        },
       });
     } catch {
       client.app.log({
-        message: `[opencode-brain] Storage initialized at ${storagePath}`,
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath}`,
+        },
       });
     }
   }
@@ -157,7 +151,11 @@ export const OpencodeBrainPlugin: Plugin = async ({
 
       if (config.debug) {
         client.app.log({
-          message: `[opencode-brain] Session ${session.id} started`,
+          body: {
+            service: "opencode-brain",
+            level: "info",
+            message: `[opencode-brain] Session ${session.id} started`,
+          },
         });
       }
 

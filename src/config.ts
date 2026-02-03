@@ -4,11 +4,16 @@
  * Configuration management for the Opencode Brain plugin.
  * Handles user config loading, defaults merging, and path resolution.
  *
+ * Hybrid approach:
+ * 1. Reads from opencode.json file directly (not via SDK)
+ * 2. Environment variables override file config
+ * 3. Sensible defaults for everything else
+ *
  * @module config
  */
 
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 /**
  * Plugin configuration options
@@ -23,18 +28,6 @@ export interface PluginConfig {
 }
 
 /**
- * Plugin context passed by Opencode
- */
-export interface PluginContext {
-  /** Project directory */
-  directory: string;
-  /** Worktree path (if in a git repo) */
-  worktree?: string;
-  /** Plugin-specific config from opencode.json */
-  config?: Record<string, unknown>;
-}
-
-/**
  * Default configuration values
  */
 const DEFAULT_CONFIG: Required<PluginConfig> = {
@@ -44,47 +37,49 @@ const DEFAULT_CONFIG: Required<PluginConfig> = {
 };
 
 /**
- * Load plugin configuration with defaults
+ * Load plugin configuration from opencode.json file
  *
- * Merges user-provided config with defaults. Uses this precedence:
- * 1. User-provided config from opencode.json (via ctx.config)
- * 2. Environment variables (OPENCODE_BRAIN_*)
- * 3. Hardcoded defaults
+ * Merges: defaults < opencode.json < environment variables
  *
- * @param ctx - Plugin context from Opencode
+ * @param directory - Project directory path
  * @returns Merged configuration with all values populated
- *
- * @example
- * ```typescript
- * const config = loadConfig({ directory: '/project', config: { debug: true } });
- * // config.debug === true (from user)
- * // config.autoInitialize === true (from defaults)
- * ```
  */
-export function loadConfig(ctx: PluginContext): Required<PluginConfig> {
-  const userConfig = (ctx.config || {}) as PluginConfig;
+export function loadConfig(directory: string): Required<PluginConfig> {
+  // 1. Start with defaults
+  let config: Required<PluginConfig> = { ...DEFAULT_CONFIG };
 
-  // Environment variable overrides
-  const envConfig: Partial<PluginConfig> = {};
+  // 2. Override from opencode.json if it exists
+  try {
+    const configPath = join(directory, "opencode.json");
+    const fileContent = readFileSync(configPath, "utf-8");
+    const opencodeConfig = JSON.parse(fileContent) as Record<string, unknown>;
+    
+    // Extract opencode-brain specific config
+    const pluginConfig = opencodeConfig["opencode-brain"] as PluginConfig | undefined;
+    if (pluginConfig) {
+      config = {
+        ...config,
+        ...pluginConfig,
+      };
+    }
+  } catch {
+    // File doesn't exist or is invalid JSON - use defaults
+  }
 
+  // 3. Environment variable overrides
   if (process.env.OPENCODE_BRAIN_STORAGE_PATH) {
-    envConfig.storagePath = process.env.OPENCODE_BRAIN_STORAGE_PATH;
+    config.storagePath = process.env.OPENCODE_BRAIN_STORAGE_PATH;
   }
 
   if (process.env.OPENCODE_BRAIN_DEBUG) {
-    envConfig.debug = process.env.OPENCODE_BRAIN_DEBUG === "true";
+    config.debug = process.env.OPENCODE_BRAIN_DEBUG === "true";
   }
 
   if (process.env.OPENCODE_BRAIN_AUTO_INIT) {
-    envConfig.autoInitialize = process.env.OPENCODE_BRAIN_AUTO_INIT !== "false";
+    config.autoInitialize = process.env.OPENCODE_BRAIN_AUTO_INIT !== "false";
   }
 
-  // Merge: defaults < user config < environment
-  return {
-    storagePath: envConfig.storagePath ?? userConfig.storagePath ?? DEFAULT_CONFIG.storagePath,
-    autoInitialize: envConfig.autoInitialize ?? userConfig.autoInitialize ?? DEFAULT_CONFIG.autoInitialize,
-    debug: envConfig.debug ?? userConfig.debug ?? DEFAULT_CONFIG.debug,
-  };
+  return config;
 }
 
 /**

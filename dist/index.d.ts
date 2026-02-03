@@ -56,6 +56,11 @@ declare const OpencodeBrainPlugin: Plugin;
  * Configuration management for the Opencode Brain plugin.
  * Handles user config loading, defaults merging, and path resolution.
  *
+ * Hybrid approach:
+ * 1. Reads from opencode.json file directly (not via SDK)
+ * 2. Environment variables override file config
+ * 3. Sensible defaults for everything else
+ *
  * @module config
  */
 /**
