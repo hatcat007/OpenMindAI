@@ -269,10 +269,18 @@ export const OpencodeBrainPlugin: Plugin = async ({
     /**
      * Error handler - Called when plugin encounters an error
      *
-     * Never throw from here - log and continue gracefully.
+     * Captures error to memory for debugging, then logs and continues.
+     * Never throw from here - always graceful degradation.
      */
     onError: (error: Error) => {
       console.error("[opencode-brain] Plugin error:", error.message);
+
+      try {
+        captureSessionError(error, eventBuffer, currentSessionId);
+      } catch {
+        // Silent fail - don't create infinite error loop
+      }
+
       // Don't re-throw - keep Opencode running
     },
   };
