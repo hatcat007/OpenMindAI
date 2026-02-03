@@ -31,6 +31,11 @@
 - [ ] Works with Bun runtime
 - [ ] Storage API matches @memvid/sdk surface for future migration
 
+**Plans:** 3 plans
+- [ ] 01-01-PLAN.md — Bun-compatible storage layer (SQLite-based)
+- [ ] 01-02-PLAN.md — Plugin architecture with @opencode-ai/plugin SDK
+- [ ] 01-03-PLAN.md — NPM package structure and build configuration
+
 ---
 
 ## Phase 2: Event Capture
