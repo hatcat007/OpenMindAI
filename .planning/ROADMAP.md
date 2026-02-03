@@ -1,6 +1,6 @@
 # Roadmap: Opencode Brain
 
-**Current Status:** 0% complete | **Target:** 100% (5 phases)
+**Current Status:** 20% complete (Phase 1 of 5) | **Target:** 100% (5 phases)
 
 ---
 
@@ -8,34 +8,34 @@
 **Goal:** Establish core storage and plugin architecture
 **Requirements:** CORE-01..06, PLUG-01..06, PRIV-05, INST-01..05
 **Success Criteria:** Plugin loads, creates mind.mv2, basic storage works
-**Status:** ✓ All 3 plans complete, 14/14 tests passing
+**Status:** ✓ All 3 plans complete, 14/14 tests passing, 0 TypeScript errors
 
 ✅ **RESOLVED:** Implemented bun:sqlite storage layer (replaces @memvid/sdk)
 
-| # | Requirement | Description |
-|---|-------------|-------------|
-| 1 | CORE-01 | Single-file storage in .opencode/mind.mv2 |
-| 2 | CORE-02 | Bun-compatible storage implementation (replaces @memvid/sdk) |
-| 3 | CORE-03 | Multi-project support via worktree detection |
-| 4 | CORE-04 | File locking to prevent corruption (Bun-compatible) |
-| 5 | PLUG-01 | Native plugin structure with TypeScript |
-| 6 | PLUG-02 | @opencode-ai/plugin SDK integration |
-| 7 | PLUG-03 | NPM package structure for opencode-brain |
-| 8 | PLUG-04 | Auto-initialization on first run |
-| 9 | INST-01 | One-command npm install |
-| 10 | INST-02 | Zero configuration out of the box |
+| # | Requirement | Description | Status |
+|---|---|-------------|--------|
+| 1 | CORE-01 | Single-file storage in .opencode/mind.mv2 | ✓ |
+| 2 | CORE-02 | Bun-compatible storage implementation (replaces @memvid/sdk) | ✓ |
+| 3 | CORE-03 | Multi-project support via worktree detection | ✓ |
+| 4 | CORE-04 | File locking to prevent corruption (WAL mode) | ✓ |
+| 5 | PLUG-01 | Native plugin structure with TypeScript | ✓ |
+| 6 | PLUG-02 | @opencode-ai/plugin SDK integration | ✓ |
+| 7 | PLUG-03 | NPM package structure for opencode-brain | ✓ |
+| 8 | PLUG-04 | Auto-initialization on first run | ✓ |
+| 9 | INST-01 | One-command npm install | ✓ |
+| 10 | INST-02 | Zero configuration out of the box | ✓ |
 
 **Phase Success:** 
-- [ ] Plugin loads without errors in Opencode
-- [ ] mind.mv2 created automatically on first run
-- [ ] Can write and read from Bun-compatible storage layer
-- [ ] Works with Bun runtime
-- [ ] Storage API matches @memvid/sdk surface for future migration
+- [x] Plugin loads without errors in Opencode — Plugin implementation at `src/plugin.ts` with @opencode-ai/plugin SDK
+- [x] mind.mv2 created automatically on first run — `autoInitialize: true` by default in config
+- [x] Can write and read from Bun-compatible storage layer — 14/14 storage tests pass, uses `bun:sqlite`
+- [x] Works with Bun runtime — Bun engine requirement, bun:sqlite native module
+- [x] Storage API matches @memvid/sdk surface for future migration — Interface: `write()`, `read()`, `search()`, `stats()`, `close()`
 
-**Plans:** 3 plans
-- [ ] 01-01-PLAN.md — Bun-compatible storage layer (SQLite-based)
-- [ ] 01-02-PLAN.md — Plugin architecture with @opencode-ai/plugin SDK
-- [ ] 01-03-PLAN.md — NPM package structure and build configuration
+**Plans:** 3 plans — ALL COMPLETE
+- [x] 01-01-PLAN.md — Bun-compatible storage layer (SQLite-based) ✓
+- [x] 01-02-PLAN.md — Plugin architecture with @opencode-ai/plugin SDK ✓
+- [x] 01-03-PLAN.md — NPM package structure and build configuration ✓
 
 ---
 
