@@ -818,6 +818,14 @@ var OpencodeBrainPlugin = async ({
       error instanceof Error ? error.message : String(error)
     );
     return {
+      "session.created": async () => {
+      },
+      "tool.execute.after": async () => {
+      },
+      "file.edited": async () => {
+      },
+      "session.deleted": async () => {
+      },
       onError: (err) => {
         console.error("[opencode-brain] Error:", err.message);
       }

@@ -80,8 +80,12 @@ export const OpencodeBrainPlugin: Plugin = async ({
       "[opencode-brain] Failed to initialize storage:",
       error instanceof Error ? error.message : String(error)
     );
-    // Return minimal handlers so plugin doesn't crash Opencode
+    // Return all hooks with no-op implementations so Opencode doesn't get undefined
     return {
+      "session.created": async () => {},
+      "tool.execute.after": async () => {},
+      "file.edited": async () => {},
+      "session.deleted": async () => {},
       onError: (err: Error) => {
         console.error("[opencode-brain] Error:", err.message);
       },
