@@ -321,126 +321,117 @@ var DEFAULT_BUFFER_CONFIG = {
   onFlush: () => {
   }
 };
-var EventBuffer = class _EventBuffer {
-  entries = [];
-  config;
-  lastFlush = Date.now();
-  timer = null;
-  isFlushing = false;
-  /**
-   * Create a new event buffer
-   * @param config - Buffer configuration (partial, defaults applied)
-   */
-  constructor(config) {
-    if (!(this instanceof _EventBuffer)) {
-      return new _EventBuffer(config);
+function createEventBuffer(config) {
+  const fullConfig = {
+    ...DEFAULT_BUFFER_CONFIG,
+    ...config
+  };
+  if (!fullConfig.onFlush || fullConfig.onFlush === DEFAULT_BUFFER_CONFIG.onFlush) {
+    console.error("[EventBuffer] Warning: onFlush callback not provided");
+  }
+  let entries = [];
+  let lastFlush = Date.now();
+  let timer = null;
+  let isFlushing = false;
+  return {
+    /**
+     * Add an entry to the buffer
+     * Triggers flush if buffer reaches maxSize
+     */
+    add(entry) {
+      entries.push(entry);
+      if (entries.length >= fullConfig.maxSize) {
+        this.flush();
+      }
+    },
+    /**
+     * Flush all buffered entries to storage
+     * Clears buffer after successful flush
+     * Never throws - errors are logged to console.error
+     */
+    flush() {
+      if (isFlushing) {
+        return;
+      }
+      if (entries.length === 0) {
+        return;
+      }
+      isFlushing = true;
+      try {
+        const entriesToFlush = [...entries];
+        entries = [];
+        fullConfig.onFlush(entriesToFlush);
+        lastFlush = Date.now();
+      } catch (error) {
+        console.error(
+          "[EventBuffer] Flush error:",
+          error instanceof Error ? error.message : String(error)
+        );
+        entries = [...entries, ...entries];
+      } finally {
+        isFlushing = false;
+      }
+    },
+    /**
+     * Clear the buffer without flushing
+     * Use with caution - may cause data loss
+     */
+    clear() {
+      entries = [];
+    },
+    /**
+     * Start the periodic flush timer
+     * Flushes buffer at flushIntervalMs intervals
+     */
+    start() {
+      this.stop();
+      timer = setInterval(() => {
+        this.flush();
+      }, fullConfig.flushIntervalMs);
+    },
+    /**
+     * Stop the periodic flush timer
+     * Optionally flushes remaining entries
+     */
+    stop(options) {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (options?.flushRemaining !== false) {
+        this.flush();
+      }
+    },
+    /**
+     * Get current buffer size
+     * @returns Number of entries in buffer
+     */
+    size() {
+      return entries.length;
+    },
+    /**
+     * Get time since last flush
+     * @returns Milliseconds since last flush
+     */
+    getLastFlushTime() {
+      return Date.now() - lastFlush;
+    },
+    /**
+     * Check if buffer is currently flushing
+     * @returns True if flush is in progress
+     */
+    isFlushInProgress() {
+      return isFlushing;
     }
-    this.config = {
-      ...DEFAULT_BUFFER_CONFIG,
-      ...config
-    };
-    if (!this.config.onFlush || this.config.onFlush === DEFAULT_BUFFER_CONFIG.onFlush) {
-      console.error("[EventBuffer] Warning: onFlush callback not provided");
-    }
-  }
-  /**
-   * Add an entry to the buffer
-   * Triggers flush if buffer reaches maxSize
-   * @param entry - Memory entry to buffer
-   */
-  add(entry) {
-    this.entries.push(entry);
-    if (this.entries.length >= this.config.maxSize) {
-      this.flush();
-    }
-  }
-  /**
-   * Flush all buffered entries to storage
-   * Clears buffer after successful flush
-   * Never throws - errors are logged to console.error
-   */
-  flush() {
-    if (this.isFlushing) {
-      return;
-    }
-    if (this.entries.length === 0) {
-      return;
-    }
-    this.isFlushing = true;
-    try {
-      const entriesToFlush = [...this.entries];
-      this.entries = [];
-      this.config.onFlush(entriesToFlush);
-      this.lastFlush = Date.now();
-    } catch (error) {
-      console.error(
-        "[EventBuffer] Flush error:",
-        error instanceof Error ? error.message : String(error)
-      );
-    } finally {
-      this.isFlushing = false;
-    }
-  }
-  /**
-   * Clear the buffer without flushing
-   * Use with caution - may cause data loss
-   */
-  clear() {
-    this.entries = [];
-  }
-  /**
-   * Start the periodic flush timer
-   * Flushes buffer at flushIntervalMs intervals
-   */
-  start() {
-    this.stop();
-    this.timer = setInterval(() => {
-      this.flush();
-    }, this.config.flushIntervalMs);
-  }
-  /**
-   * Stop the periodic flush timer
-   * Optionally flushes remaining entries
-   * @param options - Stop options
-   * @param options.flushRemaining - Whether to flush before stopping (default: true)
-   */
-  stop(options) {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-    if (options?.flushRemaining !== false) {
-      this.flush();
-    }
-  }
-  /**
-   * Get current buffer size
-   * @returns Number of entries in buffer
-   */
-  size() {
-    return this.entries.length;
-  }
-  /**
-   * Get time since last flush
-   * @returns Milliseconds since last flush
-   */
-  getLastFlushTime() {
-    return Date.now() - this.lastFlush;
-  }
-  /**
-   * Check if buffer is currently flushing
-   * @returns True if flush is in progress
-   */
-  isFlushInProgress() {
-    return this.isFlushing;
-  }
-};
+  };
+}
 function createBuffer(onFlush, options) {
-  return new EventBuffer({
+  return createEventBuffer({
     ...options,
     onFlush
   });
 }
+var EventBuffer = createEventBuffer;
 
 // src/privacy/filter.ts
 var SENSITIVE_PATTERNS = [
@@ -829,7 +820,7 @@ var OpencodeBrainPlugin = async ({
       }
     };
   }
-  const eventBuffer = new EventBuffer({
+  const eventBuffer = createEventBuffer({
     maxSize: 50,
     flushIntervalMs: 5e3,
     onFlush: (entries) => {

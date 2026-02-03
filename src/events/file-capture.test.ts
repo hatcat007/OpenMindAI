@@ -8,16 +8,17 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { captureFileEdit } from "./file-capture.js";
 import { captureSessionError } from "./error-capture.js";
-import { EventBuffer } from "./buffer.js";
+import { createEventBuffer } from "./buffer.js";
+import type { IEventBuffer } from "./buffer.js";
 import type { MemoryEntry } from "../storage/storage-interface.js";
 
 describe("captureFileEdit", () => {
-  let buffer: EventBuffer;
+  let buffer: IEventBuffer;
   let flushedEntries: MemoryEntry[][] = [];
 
   beforeEach(() => {
     flushedEntries = [];
-    buffer = new EventBuffer({
+    buffer = createEventBuffer({
       maxSize: 100,
       onFlush: (entries: MemoryEntry[]) => {
         flushedEntries.push(entries);
@@ -163,7 +164,7 @@ describe("captureFileEdit", () => {
 
   it("handles errors gracefully", () => {
     // Create a buffer that triggers auto-flush and throws during flush
-    const badBuffer = new EventBuffer({
+    const badBuffer = createEventBuffer({
       maxSize: 2, // Small to trigger auto-flush on 2nd add
       onFlush: () => {
         throw new Error("Flush failed");
@@ -204,12 +205,12 @@ describe("captureFileEdit", () => {
 });
 
 describe("captureSessionError", () => {
-  let buffer: EventBuffer;
+  let buffer: IEventBuffer;
   let flushedEntries: MemoryEntry[][] = [];
 
   beforeEach(() => {
     flushedEntries = [];
-    buffer = new EventBuffer({
+    buffer = createEventBuffer({
       maxSize: 100,
       onFlush: (entries: MemoryEntry[]) => {
         flushedEntries.push(entries);
@@ -262,7 +263,7 @@ describe("captureSessionError", () => {
 
   it("handles errors gracefully", () => {
     // Create a buffer that will throw when adding
-    const badBuffer = new EventBuffer({
+    const badBuffer = createEventBuffer({
       maxSize: 100,
       onFlush: () => {
         throw new Error("Flush failed");
@@ -319,12 +320,12 @@ describe("captureSessionError", () => {
 });
 
 describe("Integration: File and Error Capture with Buffer", () => {
-  let buffer: EventBuffer;
+  let buffer: IEventBuffer;
   let flushedEntries: MemoryEntry[][] = [];
 
   beforeEach(() => {
     flushedEntries = [];
-    buffer = new EventBuffer({
+    buffer = createEventBuffer({
       maxSize: 100,
       onFlush: (entries: MemoryEntry[]) => {
         flushedEntries.push(entries);
@@ -385,9 +386,9 @@ describe("Integration: File and Error Capture with Buffer", () => {
   it("buffer flush persists all events", () => {
     // Create an array to capture all flushed entries
     const allEntries: MemoryEntry[] = [];
-    const persistBuffer = new EventBuffer({
+    const persistBuffer = createEventBuffer({
       maxSize: 10,
-      onFlush: (entries) => {
+      onFlush: (entries: MemoryEntry[]) => {
         allEntries.push(...entries);
       },
     });

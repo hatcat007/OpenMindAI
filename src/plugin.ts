@@ -30,7 +30,8 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { createStorage } from "./storage/sqlite-storage.js";
 import { loadConfig, getStoragePath } from "./config.js";
-import { EventBuffer } from "./events/buffer.js";
+import { createEventBuffer } from "./events/buffer.js";
+import type { MemoryEntry } from "./storage/storage-interface.js";
 import { captureToolExecution } from "./events/tool-capture.js";
 import { captureFileEdit } from "./events/file-capture.js";
 import { captureSessionError } from "./events/error-capture.js";
@@ -102,10 +103,10 @@ export const OpencodeBrainPlugin: Plugin = async ({
   }
 
   // Create event buffer for batched writes
-  const eventBuffer = new EventBuffer({
+  const eventBuffer = createEventBuffer({
     maxSize: 50,
     flushIntervalMs: 5000,
-    onFlush: (entries) => {
+    onFlush: (entries: MemoryEntry[]) => {
       try {
         // Write all buffered entries to storage synchronously
         for (const entry of entries) {

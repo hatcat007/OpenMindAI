@@ -186,79 +186,58 @@ interface BufferConfig {
     onFlush: (entries: MemoryEntry[]) => void;
 }
 /**
- * In-memory event buffer with automatic batch flushing
+ * Event buffer interface
+ */
+interface IEventBuffer {
+    add(entry: MemoryEntry): void;
+    flush(): void;
+    clear(): void;
+    start(): void;
+    stop(options?: {
+        flushRemaining?: boolean;
+    }): void;
+    size(): number;
+    getLastFlushTime(): number;
+    isFlushInProgress(): boolean;
+}
+/**
+ * Create an in-memory event buffer with automatic batch flushing
  *
  * Features:
  * - Configurable size and time-based flush thresholds
  * - Prevents concurrent flushes with isFlushing flag
  * - Graceful error handling (never throws)
  * - Synchronous API for Bun compatibility
+ *
+ * @param config - Buffer configuration (partial, defaults applied)
+ * @returns Event buffer instance
+ *
+ * @example
+ * ```typescript
+ * const buffer = createEventBuffer({
+ *   maxSize: 50,
+ *   flushIntervalMs: 5000,
+ *   onFlush: (entries) => {
+ *     entries.forEach(entry => storage.write(entry.id, entry));
+ *   }
+ * });
+ * buffer.start();
+ * ```
  */
-declare class EventBuffer {
-    private entries;
-    private config;
-    private lastFlush;
-    private timer;
-    private isFlushing;
-    /**
-     * Create a new event buffer
-     * @param config - Buffer configuration (partial, defaults applied)
-     */
-    constructor(config?: Partial<BufferConfig>);
-    /**
-     * Add an entry to the buffer
-     * Triggers flush if buffer reaches maxSize
-     * @param entry - Memory entry to buffer
-     */
-    add(entry: MemoryEntry): void;
-    /**
-     * Flush all buffered entries to storage
-     * Clears buffer after successful flush
-     * Never throws - errors are logged to console.error
-     */
-    flush(): void;
-    /**
-     * Clear the buffer without flushing
-     * Use with caution - may cause data loss
-     */
-    clear(): void;
-    /**
-     * Start the periodic flush timer
-     * Flushes buffer at flushIntervalMs intervals
-     */
-    start(): void;
-    /**
-     * Stop the periodic flush timer
-     * Optionally flushes remaining entries
-     * @param options - Stop options
-     * @param options.flushRemaining - Whether to flush before stopping (default: true)
-     */
-    stop(options?: {
-        flushRemaining?: boolean;
-    }): void;
-    /**
-     * Get current buffer size
-     * @returns Number of entries in buffer
-     */
-    size(): number;
-    /**
-     * Get time since last flush
-     * @returns Milliseconds since last flush
-     */
-    getLastFlushTime(): number;
-    /**
-     * Check if buffer is currently flushing
-     * @returns True if flush is in progress
-     */
-    isFlushInProgress(): boolean;
-}
+declare function createEventBuffer(config?: Partial<BufferConfig>): IEventBuffer;
 /**
  * Factory function to create a configured event buffer
  * @param onFlush - Callback for flushed entries
  * @param options - Optional configuration overrides
  * @returns Configured EventBuffer instance
+ * @deprecated Use createEventBuffer instead
  */
-declare function createBuffer(onFlush: (entries: MemoryEntry[]) => void, options?: Partial<Omit<BufferConfig, "onFlush">>): EventBuffer;
+declare function createBuffer(onFlush: (entries: MemoryEntry[]) => void, options?: Partial<Omit<BufferConfig, "onFlush">>): IEventBuffer;
+/**
+ * @deprecated Use createEventBuffer instead. This export is kept for backward compatibility.
+ * The EventBuffer class has been converted to a factory function to avoid ESM interop issues.
+ */
+declare const EventBuffer: typeof createEventBuffer;
 
 /**
  * Tool Event Capture Module
@@ -297,7 +276,7 @@ interface ToolExecuteInput {
  * @param buffer - EventBuffer for batched writes
  * @throws Never - all errors are caught and logged
  */
-declare function captureToolExecution(input: ToolExecuteInput, buffer: EventBuffer): void;
+declare function captureToolExecution(input: ToolExecuteInput, buffer: IEventBuffer): void;
 
 /**
  * File Capture Module
@@ -326,7 +305,7 @@ interface FileEditInput {
  * @param sessionId - Current session ID for metadata
  * @returns true if captured, false if skipped due to exclusion
  */
-declare function captureFileEdit(input: FileEditInput, buffer: EventBuffer, sessionId: string): boolean;
+declare function captureFileEdit(input: FileEditInput, buffer: IEventBuffer, sessionId: string): boolean;
 
 /**
  * Error Capture Module
@@ -350,7 +329,7 @@ declare function captureFileEdit(input: FileEditInput, buffer: EventBuffer, sess
  * @param buffer - Event buffer to add the entry to
  * @param sessionId - Current session ID for metadata
  */
-declare function captureSessionError(error: Error, buffer: EventBuffer, sessionId: string): void;
+declare function captureSessionError(error: Error, buffer: IEventBuffer, sessionId: string): void;
 
 /**
  * Opencode Brain Plugin

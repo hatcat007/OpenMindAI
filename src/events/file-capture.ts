@@ -8,7 +8,7 @@
  */
 
 import type { MemoryEntry } from "../storage/storage-interface.js";
-import type { EventBuffer } from "./buffer.js";
+import type { IEventBuffer } from "./buffer.js";
 import { shouldCaptureFile } from "../privacy/filter.js";
 
 /**
@@ -32,7 +32,7 @@ export interface FileEditInput {
  */
 export function captureFileEdit(
   input: FileEditInput,
-  buffer: EventBuffer,
+  buffer: IEventBuffer,
   sessionId: string
 ): boolean {
   try {

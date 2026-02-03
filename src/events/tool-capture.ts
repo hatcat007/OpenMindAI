@@ -8,7 +8,7 @@
  */
 
 import type { MemoryEntry } from "../storage/storage-interface.js";
-import type { EventBuffer } from "./buffer.js";
+import type { IEventBuffer } from "./buffer.js";
 import { sanitizeContent, sanitizeBashCommand } from "../privacy/filter.js";
 import type { ObservationType } from "../types.js";
 
@@ -193,7 +193,7 @@ export function formatToolContent(
  */
 export function captureToolExecution(
   input: ToolExecuteInput,
-  buffer: EventBuffer
+  buffer: IEventBuffer
 ): void {
   try {
     // Determine observation type

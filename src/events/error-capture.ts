@@ -8,7 +8,7 @@
  */
 
 import type { MemoryEntry } from "../storage/storage-interface.js";
-import type { EventBuffer } from "./buffer.js";
+import type { IEventBuffer } from "./buffer.js";
 import { isSensitiveContent } from "../privacy/filter.js";
 
 /**
@@ -26,7 +26,7 @@ import { isSensitiveContent } from "../privacy/filter.js";
  */
 export function captureSessionError(
   error: Error,
-  buffer: EventBuffer,
+  buffer: IEventBuffer,
   sessionId: string
 ): void {
   try {

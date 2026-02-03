@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "bun:test";
-import { EventBuffer, createBuffer } from "./buffer.js";
+import { createEventBuffer, createBuffer } from "./buffer.js";
 import type { MemoryEntry } from "../storage/storage-interface.js";
 
 /**
@@ -36,14 +36,14 @@ describe("EventBuffer", () => {
 
   describe("Basic Operations", () => {
     it("creates buffer with defaults", () => {
-      const buffer = new EventBuffer();
+      const buffer = createEventBuffer();
 
       expect(buffer.size()).toBe(0);
       expect(buffer.isFlushInProgress()).toBe(false);
     });
 
     it("creates buffer with custom config", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         flushIntervalMs: 10000,
         onFlush: mockFlush,
@@ -53,7 +53,7 @@ describe("EventBuffer", () => {
     });
 
     it("adds entry to buffer", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
       const entry = createMockEntry();
 
       buffer.add(entry);
@@ -62,7 +62,7 @@ describe("EventBuffer", () => {
     });
 
     it("adds multiple entries to buffer", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
 
       buffer.add(createMockEntry());
       buffer.add(createMockEntry());
@@ -72,7 +72,7 @@ describe("EventBuffer", () => {
     });
 
     it("size() returns correct count", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
 
       expect(buffer.size()).toBe(0);
 
@@ -87,7 +87,7 @@ describe("EventBuffer", () => {
     });
 
     it("clears buffer without flush", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
 
       buffer.add(createMockEntry());
       buffer.add(createMockEntry());
@@ -102,7 +102,7 @@ describe("EventBuffer", () => {
   describe("Auto-Flush on Size", () => {
     it("flushes when maxSize reached", () => {
       const maxSize = 50;
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize,
         flushIntervalMs: 100000, // Long interval to not interfere
         onFlush: mockFlush,
@@ -127,7 +127,7 @@ describe("EventBuffer", () => {
 
     it("flushes before exceeding maxSize", () => {
       const maxSize = 5;
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize,
         flushIntervalMs: 100000,
         onFlush: mockFlush,
@@ -144,7 +144,7 @@ describe("EventBuffer", () => {
     });
 
     it("does not flush before reaching maxSize", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 10,
         flushIntervalMs: 100000,
         onFlush: mockFlush,
@@ -161,7 +161,7 @@ describe("EventBuffer", () => {
 
     it("handles multiple flush cycles", () => {
       const maxSize = 10;
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize,
         flushIntervalMs: 100000,
         onFlush: mockFlush,
@@ -186,7 +186,7 @@ describe("EventBuffer", () => {
 
   describe("Interval-Based Flush", () => {
     it("flushes on interval", async () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         flushIntervalMs: 100, // 100ms for fast test
         onFlush: mockFlush,
@@ -211,7 +211,7 @@ describe("EventBuffer", () => {
     });
 
     it("does not flush when timer is stopped", async () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         flushIntervalMs: 100,
         onFlush: mockFlush,
@@ -231,7 +231,7 @@ describe("EventBuffer", () => {
     });
 
     it("restarts timer correctly", async () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         flushIntervalMs: 100,
         onFlush: mockFlush,
@@ -254,7 +254,7 @@ describe("EventBuffer", () => {
 
   describe("Stop Behavior", () => {
     it("stops and flushes remaining by default", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: mockFlush,
       });
@@ -275,7 +275,7 @@ describe("EventBuffer", () => {
     });
 
     it("stops without flushing when flushRemaining is false", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: mockFlush,
       });
@@ -302,7 +302,7 @@ describe("EventBuffer", () => {
         }
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: slowFlush,
       });
@@ -330,7 +330,7 @@ describe("EventBuffer", () => {
         }
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 2,
         onFlush: slowFlush,
       });
@@ -354,7 +354,7 @@ describe("EventBuffer", () => {
         throw new Error("Flush failed");
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: errorFlush,
       });
@@ -378,7 +378,7 @@ describe("EventBuffer", () => {
         flushedEntries.push(entries);
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: conditionalFlush,
       });
@@ -401,7 +401,7 @@ describe("EventBuffer", () => {
         throw new Error("Auto-flush failed");
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 2,
         onFlush: errorFlush,
       });
@@ -418,7 +418,7 @@ describe("EventBuffer", () => {
     it("createBuffer factory creates configured buffer", () => {
       const buffer = createBuffer(mockFlush, { maxSize: 25 });
 
-      expect(buffer).toBeInstanceOf(EventBuffer);
+      // Factory function returns an object implementing IEventBuffer interface
       expect(buffer.size()).toBe(0);
 
       // Verify it works
@@ -437,7 +437,7 @@ describe("EventBuffer", () => {
 
   describe("Edge Cases", () => {
     it("flush on empty buffer does nothing", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
 
       buffer.flush();
 
@@ -446,7 +446,7 @@ describe("EventBuffer", () => {
     });
 
     it("flush updates lastFlush time", () => {
-      const buffer = new EventBuffer({ onFlush: mockFlush });
+      const buffer = createEventBuffer({ onFlush: mockFlush });
 
       const beforeFlush = Date.now();
       buffer.add(createMockEntry());
@@ -459,7 +459,7 @@ describe("EventBuffer", () => {
     });
 
     it("maintains entry order in flush", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 100,
         onFlush: mockFlush,
       });
@@ -483,7 +483,7 @@ describe("EventBuffer", () => {
 
   describe("Performance", () => {
     it("performance: 1000 events under threshold", () => {
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 10000, // Large to prevent auto-flush
         onFlush: () => {
           // No-op
@@ -512,7 +512,7 @@ describe("EventBuffer", () => {
         void entries.length;
       };
 
-      const buffer = new EventBuffer({
+      const buffer = createEventBuffer({
         maxSize: 50,
         onFlush: timedFlush,
       });

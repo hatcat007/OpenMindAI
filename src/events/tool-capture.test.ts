@@ -16,7 +16,8 @@ import {
   formatToolContent,
   type ToolExecuteInput,
 } from "./tool-capture.js";
-import { EventBuffer } from "./buffer.js";
+import { createEventBuffer } from "./buffer.js";
+import type { IEventBuffer } from "./buffer.js";
 import type { MemoryEntry } from "../storage/storage-interface.js";
 
 describe("determineObservationType", () => {
@@ -194,11 +195,11 @@ describe("formatToolContent", () => {
 
 describe("captureToolExecution", () => {
   let capturedEntries: MemoryEntry[];
-  let mockBuffer: EventBuffer;
+  let mockBuffer: IEventBuffer;
 
   beforeEach(() => {
     capturedEntries = [];
-    mockBuffer = new EventBuffer({
+    mockBuffer = createEventBuffer({
       maxSize: 50,
       flushIntervalMs: 5000,
       onFlush: (entries) => {
@@ -347,7 +348,7 @@ describe("captureToolExecution", () => {
       add: () => {
         throw new Error("Buffer error");
       },
-    } as unknown as EventBuffer;
+    } as unknown as IEventBuffer;
 
     const input: ToolExecuteInput = {
       tool: "read",
@@ -510,14 +511,14 @@ describe("captureToolExecution", () => {
 
 describe("Privacy Integration", () => {
   let capturedEntries: MemoryEntry[];
-  let mockBuffer: EventBuffer;
+  let mockBuffer: IEventBuffer;
 
   beforeEach(() => {
     capturedEntries = [];
-    mockBuffer = new EventBuffer({
+    mockBuffer = createEventBuffer({
       maxSize: 50,
       flushIntervalMs: 5000,
-      onFlush: (entries) => {
+      onFlush: (entries: MemoryEntry[]) => {
         capturedEntries.push(...entries);
       },
     });
@@ -596,14 +597,14 @@ describe("Privacy Integration", () => {
 
 describe("Edge Cases", () => {
   let capturedEntries: MemoryEntry[];
-  let mockBuffer: EventBuffer;
+  let mockBuffer: IEventBuffer;
 
   beforeEach(() => {
     capturedEntries = [];
-    mockBuffer = new EventBuffer({
+    mockBuffer = createEventBuffer({
       maxSize: 50,
       flushIntervalMs: 5000,
-      onFlush: (entries) => {
+      onFlush: (entries: MemoryEntry[]) => {
         capturedEntries.push(...entries);
       },
     });
