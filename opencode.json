@@ -1,9 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["./dist/index.js"],
-  "opencode-brain": {
-    "debug": false,
-    "storagePath": ".opencode/mind.mv2",
-    "autoInitialize": true
-  }
+  "plugin": ["./dist/index.js"]
 }
