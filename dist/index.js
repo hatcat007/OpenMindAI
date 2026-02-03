@@ -321,7 +321,7 @@ var DEFAULT_BUFFER_CONFIG = {
   onFlush: () => {
   }
 };
-var EventBuffer = class {
+var EventBuffer = class _EventBuffer {
   entries = [];
   config;
   lastFlush = Date.now();
@@ -332,6 +332,9 @@ var EventBuffer = class {
    * @param config - Buffer configuration (partial, defaults applied)
    */
   constructor(config) {
+    if (!(this instanceof _EventBuffer)) {
+      return new _EventBuffer(config);
+    }
     this.config = {
       ...DEFAULT_BUFFER_CONFIG,
       ...config

@@ -43,7 +43,7 @@ export const DEFAULT_BUFFER_CONFIG: BufferConfig = {
  */
 export class EventBuffer {
   private entries: MemoryEntry[] = [];
-  private config: BufferConfig;
+  private config!: BufferConfig;
   private lastFlush: number = Date.now();
   private timer: Timer | null = null;
   private isFlushing: boolean = false;
@@ -53,6 +53,15 @@ export class EventBuffer {
    * @param config - Buffer configuration (partial, defaults applied)
    */
   constructor(config?: Partial<BufferConfig>) {
+    // Handle case where class is called without 'new' (ESM interop issue)
+    // This can happen with certain bundler/transpilation setups
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (!(this instanceof EventBuffer)) {
+      // Return a new instance when called as a function
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return new (EventBuffer as any)(config);
+    }
+
     this.config = {
       ...DEFAULT_BUFFER_CONFIG,
       ...config,
