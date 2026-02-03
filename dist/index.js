@@ -2,7 +2,7 @@
 
 // src/storage/sqlite-storage.ts
 import { Database } from "bun:sqlite";
-import { unlinkSync, existsSync } from "fs";
+import { unlinkSync, existsSync } from "node:fs";
 var BrainStorage = class {
   db;
   filePath;
@@ -298,8 +298,8 @@ function createStorage(options) {
 }
 
 // src/config.ts
-import { join } from "path";
-import { mkdirSync, readFileSync } from "fs";
+import { join } from "node:path";
+import { mkdirSync, readFileSync } from "node:fs";
 var DEFAULT_CONFIG = {
   storagePath: ".opencode/mind.mv2",
   autoInitialize: true,
