@@ -12,6 +12,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { unlinkSync, existsSync } from "node:fs";
 import type {
   StorageInterface,
   StorageOptions,
@@ -38,6 +39,10 @@ export class BrainStorage implements StorageInterface {
   constructor(filePath: string) {
     this.filePath = filePath;
 
+    // Clean up stale lock files that can cause hangs
+    // These are created by WAL mode and can be left behind after crashes
+    this.cleanupStaleLockFiles(filePath);
+
     // Open database with creation enabled
     this.db = new Database(filePath, { create: true });
 
@@ -63,6 +68,35 @@ export class BrainStorage implements StorageInterface {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Clean up stale SQLite lock files that can cause indefinite hangs
+   *
+   * WAL mode creates -wal and -shm files. If Opencode crashes or is killed,
+   * these can be left behind with stale locks, causing the next open to hang.
+   *
+   * @param filePath - Path to the SQLite database file
+   */
+  private cleanupStaleLockFiles(filePath: string): void {
+    const lockFiles = [
+      `${filePath}-wal`,      // WAL journal file
+      `${filePath}-shm`,      // Shared memory file
+      `${filePath}-wal-summary`, // WAL summary file (if exists)
+    ];
+
+    for (const lockFile of lockFiles) {
+      try {
+        if (existsSync(lockFile)) {
+          unlinkSync(lockFile);
+          console.log(`[opencode-brain] Cleaned up stale lock file: ${lockFile}`);
+        }
+      } catch {
+        // Silent fail - file might not exist or we don't have permission
+        // If we can't delete it, the database open might hang, but that's
+        // better than crashing with an error
+      }
     }
   }
 

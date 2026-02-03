@@ -59,8 +59,11 @@ export const OpencodeBrainPlugin: Plugin = async ({
   directory,
   worktree,
 }) => {
+  console.log("[opencode-brain] Plugin starting...");
+  
   // Load configuration with defaults (reads from file directly)
   const config = loadConfig(directory);
+  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
 
   // Determine storage path based on worktree (or directory as fallback)
   const projectPath = worktree || directory;
@@ -74,6 +77,7 @@ export const OpencodeBrainPlugin: Plugin = async ({
   let storage: any;
   try {
     storage = createStorage({ filePath: storagePath });
+    console.log("[opencode-brain] Storage initialized at", storagePath);
   } catch (error) {
     console.error(
       "[opencode-brain] Failed to initialize storage:",
@@ -114,6 +118,7 @@ export const OpencodeBrainPlugin: Plugin = async ({
 
   // Start periodic flush timer
   eventBuffer.start();
+  console.log("[opencode-brain] Event buffer created");
 
   // Log initialization if debug mode enabled
   if (config.debug) {
@@ -137,6 +142,8 @@ export const OpencodeBrainPlugin: Plugin = async ({
     }
   }
 
+  console.log("[opencode-brain] Returning hooks...");
+  
   // Return event handlers
   return {
     /**
@@ -265,6 +272,12 @@ export const OpencodeBrainPlugin: Plugin = async ({
         // Silent fail - don't crash Opencode during shutdown
       }
     },
+
+    // DEBUG: Confirm all hooks are set up - this marker executes when the return object is constructed
+    _marker: (() => {
+      console.log("[opencode-brain] All hooks configured and ready");
+      return undefined;
+    })(),
 
   };
 };

@@ -2,6 +2,7 @@
 
 // src/storage/sqlite-storage.ts
 import { Database } from "bun:sqlite";
+import { unlinkSync, existsSync } from "fs";
 var BrainStorage = class {
   db;
   filePath;
@@ -12,6 +13,7 @@ var BrainStorage = class {
    */
   constructor(filePath) {
     this.filePath = filePath;
+    this.cleanupStaleLockFiles(filePath);
     this.db = new Database(filePath, { create: true });
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA busy_timeout = 5000");
@@ -28,6 +30,33 @@ var BrainStorage = class {
       return true;
     } catch {
       return false;
+    }
+  }
+  /**
+   * Clean up stale SQLite lock files that can cause indefinite hangs
+   *
+   * WAL mode creates -wal and -shm files. If Opencode crashes or is killed,
+   * these can be left behind with stale locks, causing the next open to hang.
+   *
+   * @param filePath - Path to the SQLite database file
+   */
+  cleanupStaleLockFiles(filePath) {
+    const lockFiles = [
+      `${filePath}-wal`,
+      // WAL journal file
+      `${filePath}-shm`,
+      // Shared memory file
+      `${filePath}-wal-summary`
+      // WAL summary file (if exists)
+    ];
+    for (const lockFile of lockFiles) {
+      try {
+        if (existsSync(lockFile)) {
+          unlinkSync(lockFile);
+          console.log(`[opencode-brain] Cleaned up stale lock file: ${lockFile}`);
+        }
+      } catch {
+      }
     }
   }
   /**
@@ -770,13 +799,16 @@ var OpencodeBrainPlugin = async ({
   directory,
   worktree
 }) => {
+  console.log("[opencode-brain] Plugin starting...");
   const config = loadConfig(directory);
+  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
   const projectPath = worktree || directory;
   const storagePath = getStoragePath(projectPath, config);
   let currentSessionId = "unknown";
   let storage;
   try {
     storage = createStorage({ filePath: storagePath });
+    console.log("[opencode-brain] Storage initialized at", storagePath);
   } catch (error) {
     console.error(
       "[opencode-brain] Failed to initialize storage:",
@@ -813,6 +845,7 @@ var OpencodeBrainPlugin = async ({
     }
   });
   eventBuffer.start();
+  console.log("[opencode-brain] Event buffer created");
   if (config.debug) {
     try {
       const stats = storage.stats();
@@ -833,6 +866,7 @@ var OpencodeBrainPlugin = async ({
       });
     }
   }
+  console.log("[opencode-brain] Returning hooks...");
   return {
     /**
      * Session created - Called when a new Opencode session starts
@@ -933,7 +967,12 @@ var OpencodeBrainPlugin = async ({
           error instanceof Error ? error.message : String(error)
         );
       }
-    }
+    },
+    // DEBUG: Confirm all hooks are set up - this marker executes when the return object is constructed
+    _marker: (() => {
+      console.log("[opencode-brain] All hooks configured and ready");
+      return void 0;
+    })()
   };
 };
 
