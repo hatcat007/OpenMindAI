@@ -64,9 +64,6 @@ Opencode is a **96.3k+ star open-source AI coding agent** with a unique architec
 - File locking: **MEDIUM** (may need Bun alternative)
 - General logic: **LOW** (standard APIs compatible)
 
-**CRITICAL FINDING:**
-@memvid/sdk fails with Bun due to Node.js crypto incompatibility in analytics module. Must implement alternative storage solution.
-
 ### 4. Recommended Architecture
 
 **Approach:** Native Opencode plugin (not adapter)
@@ -77,7 +74,7 @@ opencode-brain/
 ├── src/
 │   ├── index.ts           # Plugin entry point
 │   ├── memory.ts          # Core memory logic
-│   ├── storage.ts         # Storage adapter
+│   ├── storage.ts         # Storage adapter (Bun-compatible)
 │   ├── capture.ts         # Event capture
 │   └── commands.ts        # Command definitions
 ├── .opencode/
@@ -116,56 +113,97 @@ opencode-brain/
 - External APIs
 - Non-local storage
 
-### 6. Critical Pitfalls
+## Critical Update: Bun Compatibility Test Results
 
-**HIGH RISK:**
-1. **Bun compatibility** - @memvid/sdk native bindings need testing
-2. **Session injection timing** - Must inject at right moment without overwhelming context
+**Test Date:** 2025-02-03
+**Bun Version:** 1.3.8
+**@memvid/sdk Version:** 2.0.149
 
-**MEDIUM RISK:**
-3. **Event overhead** - Capturing every tool use could slow Opencode
-4. **Storage location** - Confusion between global and project-level storage
-5. **Multi-agent confusion** - Build vs Plan agents have different needs
+### ⚠️ CRITICAL ISSUE CONFIRMED
 
-**Solutions:**
-- Test with Bun early and thoroughly
-- Use buffering/batching for writes
-- Follow Opencode conventions strictly
-- Cache contexts per agent type
+**@memvid/sdk is NOT compatible with Bun**
+
+**Issues Found:**
+1. **Node.js crypto incompatibility**: SDK analytics uses `crypto.createHash()` which fails in Bun
+   - Error: `TypeError: The "data" argument must be of type string...`
+   - File: `analytics.js:105` in `generateAnonId()`
+2. **API returns Promises**: `create()` and `use()` return Promises, requiring await
+
+**Test Results:**
+```
+Bun v1.3.8
+✗ crypto.createHash() fails in Bun
+✗ Cannot create memory instance
+✗ Cannot write or read data
+```
+
+### Recommended Solutions (in order)
+
+**Option A: Alternative Storage (RECOMMENDED)**
+- Implement Bun-compatible storage layer
+- Use SQLite or JSON-based storage
+- Reimplement core features (search, compression, etc.)
+- Maintain same API surface for future migration
+
+**Option B: Vendor Fix**
+- Contact memvid team about Bun compatibility
+- Request analytics bypass flag
+- Timeline uncertain, SDK is closed-source
+
+**Option C: Skip Bun**
+- Create Node.js-only version
+- Users must run Opencode in Node mode
+- Loses compatibility with standard Opencode
+
+### Impact on Project
+
+- **Phase 1 scope increases**: Must implement storage layer instead of using SDK
+- **Timeline impact**: Additional 1-2 weeks for storage implementation
+- **Feature parity**: Need to reimplement vector search, compression, etc.
+- **Risk level**: Elevated from MEDIUM-HIGH to CRITICAL
+
+### Immediate Actions Required
+
+1. **Design storage interface** that matches @memvid/sdk API
+2. **Implement SQLite-based storage** with Bun compatibility
+3. **Create feature parity matrix** comparing implementations
+4. **Document the limitation** in README
+5. **Contact memvid team** about Bun support for future migration
 
 ## Recommended Implementation Strategy
 
-### Phase 1: Foundation (Week 1)
-- Set up Bun development environment
-- Test @memvid/sdk compatibility with Bun
-- Create basic plugin structure
-- Implement storage layer
-- Configure build/packaging for npm
+### Phase 1: Foundation (Week 1-2) - UPDATED
+**Goal:** Establish core storage and plugin architecture
 
-### Phase 2: Capture (Week 1-2)
-- Implement event handlers
-- Capture tool executions
-- Capture file changes
-- Add in-memory buffering
-- Create flush mechanism
+**New Tasks:**
+- Design storage interface matching @memvid/sdk API
+- Implement Bun-compatible storage (SQLite or JSON)
+- Create file locking mechanism for Bun
+- Build plugin structure with @opencode-ai/plugin
+- Test storage read/write operations
 
-### Phase 3: Injection (Week 2)
+**Requirements:** CORE-01, CORE-02 (NEW), CORE-03, CORE-04, PLUG-01..06, INST-01..02
+
+### Phase 2: Event Capture (Week 2-3)
+- Capture tool executions, file changes, errors
+- Batch writes to disk (async)
+- Filter sensitive data
+
+### Phase 3: Context Injection (Week 3-4)
 - Load memory at session start
-- Format for injection
-- Handle agent types
-- Test context availability
+- Inject context into prompts
+- Compress intelligently
 
-### Phase 4: Commands (Week 2-3)
-- `/mind stats` command
-- `/mind search` command  
-- `/mind ask` command
-- Custom `mind` tool
+### Phase 4: Commands & Tools (Week 4-5)
+- `/mind stats`, `/mind search`, `/mind ask`
+- Custom `mind` tool for AI
 
-### Phase 5: Polish (Week 3-4)
+### Phase 5: Polish & Migration (Week 5-6)
 - Compression
 - Import from claude-brain
 - Documentation
-- Testing & bug fixes
+
+**Timeline Impact:** +1-2 weeks due to storage layer implementation
 
 ## Success Criteria
 
@@ -183,15 +221,31 @@ opencode-brain/
 - ✅ Multi-project support
 - ✅ Published on npm
 
+## Critical Risks Summary
+
+| Risk | Level | Status | Mitigation |
+|------|-------|--------|------------|
+| @memvid/sdk Bun incompatibility | **CRITICAL** | Confirmed | Implement alternative storage |
+| Session injection timing | HIGH | - | Test with real sessions |
+| Event overhead | MEDIUM | - | Batch writes, async processing |
+| File locking in Bun | MEDIUM | - | Use Bun-compatible locks |
+| Multi-agent confusion | MEDIUM | - | Agent-specific contexts |
+
 ## Next Steps
 
-1. **Immediate:** Verify @memvid.sdk works with Bun
-2. **Day 1:** Create plugin skeleton and test loading
-3. **Day 2-3:** Port core memory logic
-4. **Week 1:** Full capture and injection working
-5. **Week 2-3:** Commands and polish
+### Immediate (Today):
+1. ✅ Research complete - all findings documented
+2. ✅ Bun compatibility tested - issue confirmed
+3. ✅ Roadmap updated with alternative storage
+4. ⏭️ Begin Phase 1 planning with storage implementation
 
-## Resources
+### This Week:
+1. Design storage interface
+2. Implement SQLite-based storage layer
+3. Create plugin skeleton
+4. Test with Bun
+
+### Resources
 
 - Opencode GitHub: https://github.com/anomalyco/opencode
 - Plugin Docs: https://opencode.ai/docs/plugins/
@@ -203,5 +257,6 @@ opencode-brain/
 **Research Confidence:** HIGH
 - Direct documentation from official sources
 - Clear architecture differences identified
-- Specific technical requirements documented
+- Bun compatibility tested and confirmed issues
 - Risk areas highlighted with mitigation strategies
+- **CRITICAL UPDATE:** Bun incompatibility confirmed, alternative storage required
