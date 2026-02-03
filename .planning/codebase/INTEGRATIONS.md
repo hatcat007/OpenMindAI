@@ -4,7 +4,7 @@
 
 ## APIs & External Services
 
-**None detected** - This is a fully local, file-based system with no external API calls.
+**None** - This is a local file-based system with no network dependencies.
 
 ## Data Storage
 
@@ -13,64 +13,66 @@
 
 **File Storage:**
 - Local filesystem only
-  - Memory files: `.mv2` format (Memvid format)
-  - Default location: `.claude/mind.mv2` (relative to project directory)
-  - Lock files: `.mv2.lock` (for concurrent access protection)
-  - Backup files: `.mv2.backup-{timestamp}` (automatic backups on corruption)
-  - Storage engine: `@memvid/sdk` (Rust-based, native performance)
-  - Implementation: `src/core/mind.ts`
+- Memory files stored as `.mv2` format (via `@memvid/sdk`)
+- Default location: `.claude/mind.mv2` in project root
+- Configurable via `MindConfig.memoryPath` (see `src/types.ts:64`)
 
 **Caching:**
-- None - Direct file access via SDK
+- In-memory deduplication cache in `src/hooks/post-tool-use.ts:43`
+- Prevents duplicate observations within 60-second window
+- No persistent cache
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- None required - Fully local operation
+- None - No authentication required
+- All operations are local file system only
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None - Errors logged to stderr (`console.error`)
+- None - No external error tracking service
 
-**Logs:**
-- Debug logging via `console.error` (when `MEMVID_MIND_DEBUG=1`)
-  - Implementation: `src/utils/helpers.ts` (`debug()` function)
-  - Logs prefixed with `[memvid-mind]`
+**Logging:**
+- Console-based debug logging (`src/utils/helpers.ts:87`)
+- Controlled by `MEMVID_MIND_DEBUG` environment variable
+- Debug output goes to `stderr` (see `src/utils/helpers.ts:debug()`)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- NPM package registry (for distribution)
-- GitHub (source repository: `memvid/claude-brain`)
+- npm registry - Package published to npmjs.com
+- GitHub - Source code and releases hosted on GitHub
 
 **CI Pipeline:**
-- GitHub Actions
-  - Config: `.github/workflows/ci.yml`
-  - Tests Node.js versions: 18, 20, 22
-  - Steps: Install → Build → Type check → Lint → Test
-  - Plugin structure verification job
-
-**Release:**
-- GitHub Actions release workflow
-  - Config: `.github/workflows/release.yml` (not analyzed in detail)
+- GitHub Actions (`.github/workflows/`)
+  - `ci.yml` - Continuous integration
+    - Tests on Node 18, 20, 22
+    - Builds, type checks, lints, tests
+  - `release.yml` - Automated releases
+    - Triggers on version tags (`v*`)
+    - Publishes to npm with provenance
+    - Creates GitHub releases
 
 ## Environment Configuration
 
 **Required env vars:**
-- `CLAUDE_PLUGIN_ROOT` - Set by Claude Code runtime
-  - Used in: `src/hooks/smart-install.ts`, `src/scripts/*.ts`
-  - Purpose: Locates plugin installation directory
-- `CLAUDE_PROJECT_DIR` - Set by Claude Code runtime (optional, falls back to `process.cwd()`)
-  - Used in: `src/core/mind.ts`, `src/hooks/session-start.ts`, `src/scripts/*.ts`
-  - Purpose: Determines where to store/read memory files
+- None required - All environment variables are optional
 
 **Optional env vars:**
-- `MEMVID_MIND_DEBUG` - Set to "1" to enable debug logging
-  - Used in: `src/utils/helpers.ts`
+- `CLAUDE_PROJECT_DIR` - Override project directory
+  - Used in: `src/core/mind.ts:113`, `src/hooks/session-start.ts:24`, `src/scripts/*.ts`
+  - Defaults to `process.cwd()`
+- `CLAUDE_PLUGIN_ROOT` - Plugin root directory
+  - Used in: `src/hooks/smart-install.ts:15`
+  - Defaults to parent of `__dirname`
+- `MEMVID_MIND_DEBUG` - Enable debug logging
+  - Used in: `src/utils/helpers.ts:87`
+  - Set to `"1"` to enable
 
 **Secrets location:**
-- No secrets required - fully local operation
+- npm token stored as GitHub secret `NPM_TOKEN` (used in release workflow)
+- No secrets required for runtime operation
 
 ## Webhooks & Callbacks
 
@@ -78,52 +80,66 @@
 - None - No webhook endpoints
 
 **Outgoing:**
-- None - No external callbacks
+- None - No external API calls
 
-## Plugin Integration
+## External SDKs & Libraries
 
-**Claude Code Plugin System:**
+**@memvid/sdk:**
+- Type: Local file-based memory storage SDK
+- Version: ^2.0.149
+- Purpose: Provides `.mv2` file format for storing observations
+- Usage: Dynamically imported in `src/core/mind.ts:70` and all scripts
+- Integration points:
+  - `src/core/mind.ts` - Core memory operations
+  - `src/scripts/ask.ts:38` - Question answering
+  - `src/scripts/find.ts:38` - Memory search
+  - `src/scripts/stats.ts:38` - Statistics
+  - `src/scripts/timeline.ts:38` - Timeline view
+- Note: SDK is externalized in build (not bundled) - see `tsup.config.ts:25`
+
+**proper-lockfile:**
+- Type: File locking library
+- Version: ^4.1.2
+- Purpose: Prevents concurrent write corruption
+- Usage: `src/utils/memvid-lock.ts`
+- Integration: Wraps all memory file operations with file locks
+
+## Claude Code Plugin Integration
+
+**Plugin System:**
+- Integrates with Claude Code via hook system
 - Plugin manifest: `.claude-plugin/plugin.json`
-- Hooks configuration: `src/hooks/hooks.json` → `dist/hooks/hooks.json`
-- Hook types:
-  - `SessionStart` - Runs on session initialization
-    - `smart-install.js` - Auto-installs dependencies
-    - `session-start.js` - Injects memory context
-  - `PostToolUse` - Runs after each tool call
-    - `post-tool-use.js` - Records tool usage as observations
-  - `Stop` - Runs on session end
-    - `stop.js` - Saves session summary
-- Hook execution: Node.js scripts via `node` command
-- Timeouts: 5-30 seconds depending on hook type
+- Hooks:
+  - `session-start` (`src/hooks/session-start.ts`) - Injects context at session start
+  - `post-tool-use` (`src/hooks/post-tool-use.ts`) - Captures observations after tool use
+  - `smart-install` (`src/hooks/smart-install.ts`) - Handles SDK installation
+  - `stop` (`src/hooks/stop.ts`) - Session cleanup
+- Hook configuration: `src/hooks/hooks.json` and `hooks/hooks.json`
 
-## SDK Integration
+**Commands:**
+- Command definitions in `commands/` directory:
+  - `ask.md` - Ask memory questions
+  - `recent.md` - View recent timeline
+  - `search.md` - Search memories
+  - `stats.md` - View statistics
 
-**Memvid SDK:**
-- Package: `@memvid/sdk` ^2.0.149
-- Usage: Dynamic import (allows smart-install to run first)
-  - Implementation: `src/core/mind.ts` (`loadSDK()` function)
-- Functions used:
-  - `create(path, "basic")` - Creates new memory file
-  - `use("basic", path)` - Opens existing memory file
-  - `memvid.put()` - Stores observations
-  - `memvid.find()` - Lexical search
-  - `memvid.ask()` - Question answering
-  - `memvid.timeline()` - Retrieves chronological entries
-  - `memvid.stats()` - Memory statistics
-- Storage format: `.mv2` (binary format, Rust-based)
-- Search mode: Lexical (`mode: "lex"`)
+## Internal Boundaries
 
-## File System Integration
+**No External Network Calls:**
+- All operations are local file system only
+- No HTTP/HTTPS requests
+- No database connections
+- No cloud services
 
-**Local File Operations:**
-- Memory file creation/reading: Via `@memvid/sdk`
-- File locking: `proper-lockfile` library
-  - Implementation: `src/utils/memvid-lock.ts`
-  - Prevents concurrent access corruption
-- Backup management: Automatic backup on corruption detection
-  - Implementation: `src/core/mind.ts` (`pruneBackups()` function)
-  - Keeps 3 most recent backups
-- Directory creation: Automatic via `mkdir` with recursive option
+**File System Operations:**
+- Reads/writes `.mv2` memory files
+- Creates lock files (`.lock` extension)
+- Creates backup files (`.backup-{timestamp}`)
+- Reads project directory structure
+
+## Planned or Partial Integrations
+
+**None detected** - All integrations are fully implemented.
 
 ---
 

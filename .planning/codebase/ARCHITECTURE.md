@@ -4,71 +4,51 @@
 
 ## Pattern Overview
 
-**Overall:** Plugin-based hook system with singleton memory engine
+**Overall:** Plugin-based event-driven architecture with singleton memory management
 
 **Key Characteristics:**
-- Event-driven architecture via Claude Code hooks (SessionStart, PostToolUse, Stop)
-- Singleton pattern for Mind instance (shared across hooks)
-- Lazy SDK loading to minimize startup overhead
-- File-based persistence using `.mv2` format via `@memvid/sdk`
-- Lock-based concurrency control for safe multi-process access
+- Hook-based integration with Claude Code lifecycle events
+- Singleton pattern for Mind instance management
+- File-based persistent storage using @memvid/sdk
+- Event-driven observation capture from tool executions
+- Lazy SDK loading for fast startup
+- File locking for concurrent access safety
 
 ## Layers
 
 **Hook Layer:**
-- Purpose: Entry points for Claude Code plugin system
+- Purpose: Intercept Claude Code events and capture observations
 - Location: `src/hooks/`
-- Contains: Hook scripts that respond to Claude Code events
+- Contains: SessionStart, PostToolUse, Stop hooks
 - Depends on: Core Mind class, utility helpers
 - Used by: Claude Code runtime (via hooks.json configuration)
-- Key files:
-  - `src/hooks/session-start.ts`: Lightweight startup, injects context without loading SDK
-  - `src/hooks/post-tool-use.ts`: Captures observations after tool execution
-  - `src/hooks/stop.ts`: Generates session summaries and captures file changes
-  - `src/hooks/smart-install.ts`: Auto-installs dependencies on first run
 
 **Core Layer:**
-- Purpose: Memory persistence engine and main API
+- Purpose: Memory management and persistence abstraction
 - Location: `src/core/mind.ts`
-- Contains: `Mind` class with singleton accessor
-- Depends on: `@memvid/sdk`, utility modules (lock, helpers)
-- Used by: Hooks, scripts, external consumers via `src/index.ts`
-- Key abstractions:
-  - `Mind.open()`: Factory method for creating/opening memory files
-  - `mind.remember()`: Store observations with type classification
-  - `mind.search()`: Lexical search over memories
-  - `mind.getContext()`: Retrieve recent/relevant memories for session injection
-  - `mind.stats()`: Memory statistics
-
-**Utility Layer:**
-- Purpose: Shared helpers and cross-cutting concerns
-- Location: `src/utils/`
-- Contains: Compression, locking, general helpers
-- Depends on: Node.js standard library
-- Used by: Core, hooks, scripts
-- Key modules:
-  - `src/utils/compression.ts`: Tool output compression ("Endless Mode")
-  - `src/utils/memvid-lock.ts`: File locking for safe concurrent access
-  - `src/utils/helpers.ts`: ID generation, token estimation, I/O helpers
+- Contains: Mind class, getMind singleton factory
+- Depends on: @memvid/sdk, file locking utilities, type definitions
+- Used by: Hooks, scripts
 
 **Script Layer:**
-- Purpose: CLI-like scripts for querying memory
+- Purpose: CLI-like commands for memory interaction
 - Location: `src/scripts/`
-- Contains: Standalone scripts for ask, find, stats, timeline
+- Contains: ask.ts, find.ts, stats.ts, timeline.ts
 - Depends on: Core Mind, SDK utilities
-- Used by: Command system (via `commands/` markdown files)
-- Key files:
-  - `src/scripts/ask.ts`: Question answering via SDK
-  - `src/scripts/find.ts`: Search interface
-  - `src/scripts/stats.ts`: Statistics display
-  - `src/scripts/timeline.ts`: Chronological memory view
-  - `src/scripts/utils.ts`: Shared memory opening logic
+- Used by: Users via command execution
+
+**Utility Layer:**
+- Purpose: Shared helpers for compression, locking, and data processing
+- Location: `src/utils/`
+- Contains: compression.ts, memvid-lock.ts, helpers.ts
+- Depends on: Node.js standard library
+- Used by: All layers
 
 **Type Layer:**
-- Purpose: TypeScript type definitions
+- Purpose: TypeScript type definitions and configuration
 - Location: `src/types.ts`
-- Contains: Interfaces for observations, config, hooks, search results
-- Depends on: None (pure types)
+- Contains: Observation, MindConfig, HookInput/Output interfaces
+- Depends on: None
 - Used by: All layers
 
 ## Data Flow
@@ -76,136 +56,123 @@
 **Observation Capture Flow:**
 
 1. Claude Code executes a tool (Read, Edit, Bash, etc.)
-2. `PostToolUse` hook receives tool name, input, and response via stdin
-3. Hook filters tools (only captures from `OBSERVED_TOOLS` set)
-4. Deduplication check (1-minute window) prevents duplicate captures
-5. Compression applied if output exceeds threshold (~3000 chars)
-6. Observation type classified (`discovery`, `decision`, `problem`, etc.)
-7. `mind.remember()` called with observation data
-8. Mind acquires file lock, stores via SDK `put()` method
-9. Observation stored in `.claude/mind.mv2` file
+2. PostToolUse hook (`src/hooks/post-tool-use.ts`) receives tool output
+3. Hook filters and deduplicates observations
+4. Large outputs compressed via `src/utils/compression.ts` (Endless Mode)
+5. Observation classified by type (discovery, decision, problem, etc.)
+6. Mind.remember() stores observation in `.claude/mind.mv2` file
+7. Storage wrapped in file lock (`src/utils/memvid-lock.ts`) for safety
 
 **Session Start Flow:**
 
-1. Claude Code session begins
-2. `SessionStart` hook runs (after `smart-install` if needed)
-3. Hook checks for memory file existence (no SDK load)
-4. If memory exists, reads file stats and builds context string
-5. Context injected into Claude session via `hookSpecificOutput.additionalContext`
-6. SDK loaded lazily on first actual memory operation
+1. SessionStart hook (`src/hooks/session-start.ts`) runs on Claude startup
+2. Smart-install hook (`src/hooks/smart-install.ts`) ensures dependencies installed
+3. Hook checks if memory file exists (without loading SDK for speed)
+4. Provides context banner to Claude with memory status
+5. SDK loaded lazily on first actual memory access
 
 **Session End Flow:**
 
-1. Claude Code session ends
-2. `Stop` hook receives session ID and optional transcript path
-3. Hook captures file changes via git diff + find (workaround for Edit hook bug)
-4. Retrieves recent observations from current session
-5. Generates session summary if >= 3 observations
-6. Saves summary via `mind.saveSessionSummary()`
+1. Stop hook (`src/hooks/stop.ts`) runs when session ends
+2. Captures file changes via git diff (workaround for Edit tool hook bug)
+3. Generates session summary from observations
+4. Stores summary as memory for future reference
 
-**Memory Retrieval Flow:**
+**Memory Query Flow:**
 
-1. `mind.getContext(query?)` called (e.g., at session start)
-2. Acquires lock, calls SDK `timeline()` for recent observations
-3. If query provided, calls `searchUnlocked()` for relevant memories
-4. Builds context within token limits (`maxContextTokens`)
-5. Returns `InjectedContext` with recent/relevant observations
+1. User invokes script (ask.ts, find.ts, stats.ts, timeline.ts)
+2. Script ensures dependencies installed
+3. Opens memory file safely (handles corruption)
+4. Executes query via SDK (lexical search mode)
+5. Returns formatted results
+
+**State Management:**
+- Memory state stored in single `.claude/mind.mv2` file per project
+- Mind instance managed as singleton via `getMind()` function
+- File locking prevents concurrent write corruption
+- In-memory deduplication cache prevents duplicate observations within 1-minute window
 
 ## Key Abstractions
 
 **Mind Class:**
-- Purpose: Main interface for memory operations
+- Purpose: Primary interface for memory operations
 - Examples: `src/core/mind.ts`
-- Pattern: Singleton via `getMind()` factory, lazy SDK loading
-- Key methods:
-  - `open()`: Static factory, handles file creation/corruption recovery
-  - `remember()`: Store observation with metadata
-  - `search()`: Lexical search with scoring
-  - `ask()`: Question answering via SDK
-  - `getContext()`: Build session context within token limits
-  - `stats()`: Memory statistics
+- Pattern: Factory method (`Mind.open()`) with singleton accessor (`getMind()`)
+- Responsibilities: Open/create memory file, store observations, search memories, get context, generate stats
 
 **Observation:**
 - Purpose: Represents a captured memory unit
 - Examples: Defined in `src/types.ts`
-- Pattern: Typed observation with classification (`ObservationType`)
-- Fields: id, timestamp, type, summary, content, metadata, tool
+- Pattern: Structured data with type, summary, content, metadata
+- Types: discovery, decision, problem, solution, pattern, warning, success, refactor, bugfix, feature
 
 **Hook System:**
-- Purpose: Event-driven integration with Claude Code
-- Examples: `src/hooks/hooks.json` defines hook registration
-- Pattern: JSON configuration maps events to command scripts
-- Events: SessionStart, PostToolUse, Stop
+- Purpose: Integrate with Claude Code lifecycle
+- Examples: `src/hooks/session-start.ts`, `src/hooks/post-tool-use.ts`, `src/hooks/stop.ts`
+- Pattern: Command-based hooks registered in `src/hooks/hooks.json`
+- Communication: JSON stdin/stdout protocol
 
-**Compression:**
-- Purpose: Reduce memory footprint ("Endless Mode")
+**Compression System:**
+- Purpose: Reduce large tool outputs while preserving key information
 - Examples: `src/utils/compression.ts`
-- Pattern: Tool-specific compression strategies
-- Targets: ~2000 chars (~500 tokens) from larger outputs
-- Strategies: Extract structure (imports, functions, classes) for code; focus on errors/success for bash
+- Pattern: Tool-specific compression strategies (Read, Bash, Grep, etc.)
+- Target: ~500 tokens (~2000 chars) per observation
 
 ## Entry Points
 
 **Plugin Entry:**
 - Location: `.claude-plugin/plugin.json`
 - Triggers: Claude Code plugin system
-- Responsibilities: Plugin metadata, version, author
+- Responsibilities: Register hooks, define plugin metadata
 
 **Hook Entry Points:**
 - Location: `src/hooks/hooks.json`
-- Triggers: Claude Code events (SessionStart, PostToolUse, Stop)
-- Responsibilities: Register hook scripts, configure timeouts
-- Execution: Node.js scripts via `node "${CLAUDE_PLUGIN_ROOT}/dist/hooks/{hook}.js"`
+- Triggers: Claude Code lifecycle events
+- Responsibilities: Route events to appropriate handlers
+
+**Script Entry Points:**
+- Location: `src/scripts/*.ts` (compiled to `dist/scripts/*.js`)
+- Triggers: Direct execution via node
+- Responsibilities: Provide CLI-like memory interaction
 
 **Library Entry:**
 - Location: `src/index.ts`
-- Triggers: External imports
+- Triggers: Import by other packages
 - Responsibilities: Export public API (Mind class, types, utilities)
-
-**Script Entry Points:**
-- Location: `src/scripts/*.ts`
-- Triggers: Command system (via `commands/*.md` files)
-- Responsibilities: CLI-like operations (ask, find, stats, timeline)
 
 ## Error Handling
 
-**Strategy:** Fail gracefully, never block Claude Code operations
+**Strategy:** Fail gracefully, don't block Claude Code
 
 **Patterns:**
-- All hooks use try/catch with `writeOutput({ continue: true })` on error
-- Memory file corruption handled by backup + recreate in `Mind.open()`
-- File locking failures retry with exponential backoff (via `proper-lockfile`)
-- SDK loading errors caught, logged, but don't prevent hook continuation
-- Large file detection (>100MB) triggers fresh memory creation
+- Hooks always return `{ continue: true }` even on errors
+- Errors logged to stderr via debug() function
+- Corrupted memory files automatically backed up and recreated
+- File operations wrapped in try-catch with fallbacks
+- SDK loading errors handled with user-friendly messages
 
-**Recovery Mechanisms:**
-- Corrupted memory files backed up with timestamp before recreation
-- Lock timeouts prevent indefinite blocking (30s stale, 1000 retries)
-- Smart install retries with `--force` flag if initial install fails
+**Corruption Handling:**
+- Detects corrupted files via error message patterns (`src/scripts/utils.ts`)
+- Creates backup before recreating fresh memory
+- Prunes old backups (keeps only 3 most recent)
+- Validates file size (rejects files >100MB as likely corrupted)
 
 ## Cross-Cutting Concerns
 
-**Logging:** 
-- Debug logging via `debug()` helper (enabled via `MEMVID_MIND_DEBUG=1`)
-- Logs to stderr to avoid interfering with stdout JSON output
-- Used throughout hooks and core for troubleshooting
+**Logging:** Debug messages via `debug()` helper, only when `MEMVID_MIND_DEBUG=1` env var set
 
-**Validation:**
-- TypeScript strict mode enforces type safety
-- Observation types validated via `ObservationType` union
-- Config validated via `MindConfig` interface with defaults
+**Validation:** TypeScript strict mode, runtime validation for corrupted files
 
-**Concurrency:**
-- File locking via `proper-lockfile` prevents concurrent writes
-- Lock path: `{memoryPath}.lock`
-- All memory operations wrapped in `withMemvidLock()`
-- Singleton pattern ensures single Mind instance per process
+**Authentication:** None required - file-based storage
+
+**Concurrency:** File locking via `proper-lockfile` package, prevents concurrent write corruption
 
 **Performance:**
-- Lazy SDK loading (only when needed, not at session start)
-- Compression reduces storage footprint by ~20x for large outputs
-- Deduplication cache prevents redundant observations (1-minute window)
-- Token estimation (~4 chars/token) for context size management
+- Lazy SDK loading (only when needed)
+- Lightweight session-start hook (no SDK load)
+- Compression reduces storage size by ~20x
+- Deduplication prevents redundant observations
+- Lexical-only search mode for fast queries
 
 ---
 
