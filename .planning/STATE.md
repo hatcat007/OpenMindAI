@@ -1,8 +1,8 @@
 # Project State: Opencode Brain
 
 **Current Position:** Phase 2 — Event Capture (IN PROGRESS)
-**Last Updated:** 2026-02-03 after Plan 02-02 execution
-**Overall Progress:** 26% (5 phases planned, 1 complete, 2 plans in Phase 2 complete)
+**Last Updated:** 2026-02-03 after Plan 02-03 execution
+**Overall Progress:** 33% (5 phases planned, 1 complete, 3 plans in Phase 2 complete)
 
 ---
 
@@ -41,7 +41,7 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | Phase | Status | Requirements | Progress |
 |-------|--------|--------------|----------|
 | 1 — Foundation | ✓ Complete | 16 | 100% |
-| 2 — Event Capture | ○ In Progress | 10 | 2/4 plans |
+| 2 — Event Capture | ○ In Progress | 10 | 3/4 plans |
 | 3 — Context Injection | ○ Pending | 6 | 0% |
 | 4 — Commands & Tool | ○ Pending | 10 | 0% |
 | 5 — Polish | ○ Pending | 3 | 0% |
@@ -66,6 +66,10 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | Privacy filtering pure functions | No side effects for easier testing and composition | 2026-02-03 |
 | Regex patterns for .env variants | Handle .env, .env.local, .env.development.local, etc. | 2026-02-03 |
 | Cross-platform path normalization | Convert backslash to forward slash before matching | 2026-02-03 |
+| Tool-to-observation mapping | search/read → discovery, write/bash → solution, edit → refactor | 2026-02-03 |
+| Human-readable tool summaries | Format as "Read file: X" not full JSON args | 2026-02-03 |
+| Use callID as entry ID | Provides traceability to Opencode tool calls | 2026-02-03 |
+| Buffer flush before storage close | Prevents data loss on session end | 2026-02-03 |
 
 ---
 
@@ -84,12 +88,21 @@ None currently. Ready to begin Phase 2.
 
 ## Next Actions
 
-1. Execute Plan 02-03: Tool event capture (tool.execute.after integration)
-2. Execute Plan 02-04: File edit and error capture (file.edited integration)
+1. Execute Plan 02-04: File edit and error capture (file.edited integration)
+2. Verify all event capture is working together (CAPT-01..06)
 
 ---
 
 ## Context History
+
+**2026-02-03 — Phase 2 Plan 3 Complete: Tool Event Capture Integration**
+- Tool capture module with 4 exported functions (determineObservationType, extractFilesFromArgs, formatToolContent, captureToolExecution)
+- 61 unit tests covering tool mapping, file extraction, content formatting, privacy integration
+- Plugin integration: EventBuffer with batch flush to storage
+- tool.execute.after handler captures tool events with privacy filtering
+- session.deleted handler flushes buffer before storage close
+- CAPT-01 requirement (capture tool.execute.after) now complete
+- All TypeScript passing, zero errors
 
 **2026-02-03 — Phase 2 Plan 2 Complete: Privacy Filtering Layer**
 - Privacy filter module with 8 secret detection patterns
@@ -173,6 +186,7 @@ None currently. Ready to begin Phase 2.
 | 01-03-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
 | 02-01-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
 | 02-02-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
+| 02-03-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
 
 ---
 
@@ -182,4 +196,4 @@ All planning artifacts and source code committed.
 
 ---
 
-*State updated: 2026-02-03 after completing 02-02 privacy filtering*
+*State updated: 2026-02-03 after completing 02-03 tool event capture*
