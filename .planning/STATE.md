@@ -1,8 +1,8 @@
 # Project State: Opencode Brain
 
-**Current Position:** Phase 1 — Foundation (COMPLETE) ✓
-**Last Updated:** 2025-02-03 after Phase 1 execution
-**Overall Progress:** 20% (5 phases planned, 1 complete)
+**Current Position:** Phase 2 — Event Capture (IN PROGRESS)
+**Last Updated:** 2026-02-03 after Plan 02-01 execution
+**Overall Progress:** 22% (5 phases planned, 1 complete, 1 plan in Phase 2 complete)
 
 ---
 
@@ -41,7 +41,7 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | Phase | Status | Requirements | Progress |
 |-------|--------|--------------|----------|
 | 1 — Foundation | ✓ Complete | 16 | 100% |
-| 2 — Event Capture | ○ Pending | 10 | 0% |
+| 2 — Event Capture | ○ In Progress | 10 | 1/4 plans |
 | 3 — Context Injection | ○ Pending | 6 | 0% |
 | 4 — Commands & Tool | ○ Pending | 10 | 0% |
 | 5 — Polish | ○ Pending | 3 | 0% |
@@ -52,7 +52,7 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| Native plugin (not adapter) | Opencode's event system is richer than hook adapter | 2025-02-03 |
+| Native plugin (not adapter) | Opencode's event system is richer than stdin/stdout hooks | 2025-02-03 |
 | Bun runtime | Opencode uses Bun, we must be compatible | 2025-02-03 |
 | .opencode/mind.mv2 | Follows Opencode conventions | 2025-02-03 |
 | npm distribution | Standard JavaScript package distribution | 2025-02-03 |
@@ -60,6 +60,9 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | YOLO mode | Auto-approve for faster iteration | 2025-02-03 |
 | WAL mode (no proper-lockfile) | SQLite handles concurrency automatically | 2025-02-03 |
 | ESM-only | Bun has excellent ESM support | 2025-02-03 |
+| Buffer maxSize: 50 entries | Balances memory vs I/O efficiency | 2026-02-03 |
+| Buffer flushInterval: 5000ms | Good balance between freshness and batching | 2026-02-03 |
+| stop() flushes by default | Prevents data loss on session end | 2026-02-03 |
 
 ---
 
@@ -78,14 +81,20 @@ None currently. Ready to begin Phase 2.
 
 ## Next Actions
 
-1. Run `/gsd-plan-phase 2` to create detailed plan for Event Capture phase
-2. Implement tool.execute.after event capture
-3. Implement file.edited event capture
-4. Add privacy filtering (secrets, .env)
+1. Execute Plan 02-02: Privacy filtering (secret detection + file exclusion)
+2. Execute Plan 02-03: Tool event capture (tool.execute.after integration)
+3. Execute Plan 02-04: File edit and error capture (file.edited integration)
 
 ---
 
 ## Context History
+
+**2026-02-03 — Phase 2 Plan 1 Complete: Event Buffering Infrastructure**
+- EventBuffer class created with configurable thresholds
+- Batch write infrastructure for SQLite storage
+- 27 unit tests passing with performance benchmarks
+- <0.1ms per event, <50ms batch flush verified
+- Ready for tool/file event capture integration
 
 **2025-02-03 — Phase 1 Complete**
 - Bun-compatible storage layer implemented with bun:sqlite
@@ -151,6 +160,7 @@ None currently. Ready to begin Phase 2.
 | 01-01-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
 | 01-02-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
 | 01-03-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
+| 02-01-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
 
 ---
 
@@ -160,4 +170,4 @@ All planning artifacts and source code committed.
 
 ---
 
-*State updated: 2025-02-03*
+*State updated: 2026-02-03*
