@@ -30,6 +30,10 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { createStorage } from "./storage/sqlite-storage.js";
 import { loadConfig, getStoragePath } from "./config.js";
+import { EventBuffer } from "./events/buffer.js";
+import { captureToolExecution } from "./events/tool-capture.js";
+import { captureFileEdit } from "./events/file-capture.js";
+import { captureSessionError } from "./events/error-capture.js";
 
 /**
  * Opencode Brain Plugin - Makes Opencode remember everything
@@ -76,6 +80,9 @@ export const OpencodeBrainPlugin: Plugin = async ({
   const projectPath = worktree || directory;
   const storagePath = getStoragePath(projectPath, config);
 
+  // Track current session ID for event metadata
+  let currentSessionId: string = "unknown";
+
   // Initialize storage SYNCHRONOUSLY (bun:sqlite design)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let storage: any;
@@ -93,6 +100,32 @@ export const OpencodeBrainPlugin: Plugin = async ({
       },
     };
   }
+
+  // Create event buffer for batched writes
+  const eventBuffer = new EventBuffer({
+    maxSize: 50,
+    flushIntervalMs: 5000,
+    onFlush: (entries) => {
+      try {
+        // Write all buffered entries to storage synchronously
+        for (const entry of entries) {
+          storage.write(entry.id, entry);
+        }
+
+        if (config.debug) {
+          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
+        }
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Failed to flush entries:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    },
+  });
+
+  // Start periodic flush timer
+  eventBuffer.start();
 
   // Log initialization if debug mode enabled
   if (config.debug) {
@@ -114,10 +147,13 @@ export const OpencodeBrainPlugin: Plugin = async ({
      * Session created - Called when a new Opencode session starts
      *
      * This is where context injection would happen in Phase 3.
-     * Currently just logs initialization in debug mode.
+     * Currently tracks session ID for event metadata.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     "session.created": async ({ session }: { session: { id: string } }) => {
+      // Track session ID for all event capture
+      currentSessionId = session.id;
+
       if (config.debug) {
         client.app.log({
           message: `[opencode-brain] Session ${session.id} started`,
@@ -131,8 +167,8 @@ export const OpencodeBrainPlugin: Plugin = async ({
     /**
      * Tool executed - Called after each tool execution
      *
-     * Captures tool usage for memory. Stub for Phase 2 implementation.
-     * Currently just logs if debug mode is enabled.
+     * Captures tool usage for memory using EventBuffer for batched writes.
+     * Privacy filtering is applied before storage.
      */
     "tool.execute.after": async (input: {
       tool: string;
@@ -148,22 +184,52 @@ export const OpencodeBrainPlugin: Plugin = async ({
         );
       }
 
-      // Stub for Phase 2: Event capture
-      // TODO: Write memory entry for significant tool executions
+      try {
+        // Capture tool execution with privacy filtering and buffering
+        captureToolExecution(
+          {
+            tool: input.tool,
+            sessionID: input.sessionID,
+            callID: input.callID,
+            args: input.args,
+          },
+          eventBuffer
+        );
+      } catch (error) {
+        // Never throw - graceful degradation
+        console.error(
+          "[opencode-brain] Failed to capture tool execution:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
     },
 
     /**
      * File edited - Called when a file is modified
      *
-     * Captures file changes for memory. Stub for Phase 2.
+     * Captures file changes for memory using EventBuffer for batched writes.
      */
     "file.edited": async (input: { filePath: string }) => {
       if (config.debug) {
         console.log(`[opencode-brain] File edited: ${input.filePath}`);
       }
 
-      // Stub for Phase 2: File change capture
-      // TODO: Write memory entry for significant file edits
+      try {
+        // Capture file edit with privacy filtering and buffering
+        captureFileEdit(
+          {
+            filePath: input.filePath,
+          },
+          eventBuffer,
+          currentSessionId
+        );
+      } catch (error) {
+        // Never throw - graceful degradation
+        console.error(
+          "[opencode-brain] Failed to capture file edit:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
     },
 
     /**
@@ -174,7 +240,18 @@ export const OpencodeBrainPlugin: Plugin = async ({
      */
     "session.deleted": async () => {
       if (config.debug) {
-        console.log("[opencode-brain] Session ended, closing storage");
+        console.log("[opencode-brain] Session ended, flushing buffer and closing storage");
+      }
+
+      // Stop buffer and flush remaining entries
+      try {
+        eventBuffer.stop();
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Error stopping event buffer:",
+          error instanceof Error ? error.message : String(error)
+        );
+        // Silent fail - don't crash Opencode during shutdown
       }
 
       // Close storage connection (SYNCHRONOUS)

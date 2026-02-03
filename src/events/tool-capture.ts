@@ -94,7 +94,7 @@ export function extractFilesFromArgs(args: Record<string, unknown>): string[] {
   }
 
   // Filter out non-string values and duplicates
-  return [...new Set(files.filter((f) => typeof f === "string" && f.length > 0))];
+  return Array.from(new Set(files.filter((f) => typeof f === "string" && f.length > 0)));
 }
 
 /**
@@ -206,10 +206,14 @@ export function captureToolExecution(
     let sanitizedContent: string;
     if (input.tool === "bash" && input.args?.command) {
       const sanitizedCommand = sanitizeBashCommand(String(input.args.command));
-      sanitizedContent =
-        sanitizedCommand === null
-          ? "[REDACTED BASH COMMAND]"
-          : `Executed: ${sanitizedCommand}`;
+      if (sanitizedCommand === null) {
+        sanitizedContent = "[REDACTED BASH COMMAND]";
+      } else if (sanitizedCommand === "[REDACTED BASH COMMAND]") {
+        // Already redacted by sanitizeBashCommand
+        sanitizedContent = sanitizedCommand;
+      } else {
+        sanitizedContent = `Executed: ${sanitizedCommand}`;
+      }
     } else {
       sanitizedContent = sanitizeContent(formattedContent);
     }
