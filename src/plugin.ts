@@ -28,7 +28,6 @@
  */
 
 import type { Plugin } from "@opencode-ai/plugin";
-import type { Config } from "@opencode-ai/sdk";
 import { createStorage } from "./storage/sqlite-storage.js";
 import { loadConfig, getStoragePath } from "./config.js";
 import { createEventBuffer } from "./events/buffer.js";
@@ -80,9 +79,9 @@ export const OpencodeBrainPlugin: Plugin = async ({
       "[opencode-brain] Failed to initialize storage:",
       error instanceof Error ? error.message : String(error)
     );
-    // Return all hooks with no-op implementations so Opencode doesn't get undefined
+    // Return minimal hooks so Opencode doesn't get undefined
+    // Note: config hook is optional and not used by this plugin
     return {
-      config: async () => {},
       "session.created": async () => {},
       "tool.execute.after": async () => {},
       "file.edited": async () => {},
@@ -140,18 +139,6 @@ export const OpencodeBrainPlugin: Plugin = async ({
 
   // Return event handlers
   return {
-    /**
-     * Config hook - Called when plugin configuration is loaded from opencode.json
-     *
-     * This allows the plugin to react to configuration changes at runtime.
-     */
-    config: async (input: Config) => {
-      // Plugin configuration loaded from opencode.json
-      if (config.debug) {
-        console.log("[opencode-brain] Config hook called", input);
-      }
-    },
-
     /**
      * Session created - Called when a new Opencode session starts
      *
