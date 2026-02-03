@@ -764,41 +764,6 @@ function captureFileEdit(input, buffer, sessionId) {
   }
 }
 
-// src/events/error-capture.ts
-function captureSessionError(error, buffer, sessionId) {
-  try {
-    if (isSensitiveContent(error.message)) {
-      const entry2 = {
-        id: crypto.randomUUID(),
-        type: "problem",
-        content: "Session error: [REDACTED - contains sensitive data]",
-        createdAt: Date.now(),
-        metadata: {
-          sessionId,
-          summary: `Error: ${error.name}`,
-          error: error.name,
-          redacted: true
-        }
-      };
-      buffer.add(entry2);
-      return;
-    }
-    const entry = {
-      id: crypto.randomUUID(),
-      type: "problem",
-      content: `Session error: ${error.message}`,
-      createdAt: Date.now(),
-      metadata: {
-        sessionId,
-        summary: `Error: ${error.name}`,
-        error: error.name
-      }
-    };
-    buffer.add(entry);
-  } catch {
-  }
-}
-
 // src/plugin.ts
 var OpencodeBrainPlugin = async ({
   client,
@@ -825,9 +790,6 @@ var OpencodeBrainPlugin = async ({
       "file.edited": async () => {
       },
       "session.deleted": async () => {
-      },
-      onError: (err) => {
-        console.error("[opencode-brain] Error:", err.message);
       }
     };
   }
@@ -971,22 +933,44 @@ var OpencodeBrainPlugin = async ({
           error instanceof Error ? error.message : String(error)
         );
       }
-    },
-    /**
-     * Error handler - Called when plugin encounters an error
-     *
-     * Captures error to memory for debugging, then logs and continues.
-     * Never throw from here - always graceful degradation.
-     */
-    onError: (error) => {
-      console.error("[opencode-brain] Plugin error:", error.message);
-      try {
-        captureSessionError(error, eventBuffer, currentSessionId);
-      } catch {
-      }
     }
   };
 };
+
+// src/events/error-capture.ts
+function captureSessionError(error, buffer, sessionId) {
+  try {
+    if (isSensitiveContent(error.message)) {
+      const entry2 = {
+        id: crypto.randomUUID(),
+        type: "problem",
+        content: "Session error: [REDACTED - contains sensitive data]",
+        createdAt: Date.now(),
+        metadata: {
+          sessionId,
+          summary: `Error: ${error.name}`,
+          error: error.name,
+          redacted: true
+        }
+      };
+      buffer.add(entry2);
+      return;
+    }
+    const entry = {
+      id: crypto.randomUUID(),
+      type: "problem",
+      content: `Session error: ${error.message}`,
+      createdAt: Date.now(),
+      metadata: {
+        sessionId,
+        summary: `Error: ${error.name}`,
+        error: error.name
+      }
+    };
+    buffer.add(entry);
+  } catch {
+  }
+}
 
 // src/index.ts
 var index_default = OpencodeBrainPlugin;

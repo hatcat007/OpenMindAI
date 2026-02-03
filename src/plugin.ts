@@ -34,7 +34,6 @@ import { createEventBuffer } from "./events/buffer.js";
 import type { MemoryEntry } from "./storage/storage-interface.js";
 import { captureToolExecution } from "./events/tool-capture.js";
 import { captureFileEdit } from "./events/file-capture.js";
-import { captureSessionError } from "./events/error-capture.js";
 
 /**
  * Opencode Brain Plugin - Makes Opencode remember everything
@@ -86,9 +85,6 @@ export const OpencodeBrainPlugin: Plugin = async ({
       "tool.execute.after": async () => {},
       "file.edited": async () => {},
       "session.deleted": async () => {},
-      onError: (err: Error) => {
-        console.error("[opencode-brain] Error:", err.message);
-      },
     };
   }
 
@@ -269,23 +265,6 @@ export const OpencodeBrainPlugin: Plugin = async ({
       }
     },
 
-    /**
-     * Error handler - Called when plugin encounters an error
-     *
-     * Captures error to memory for debugging, then logs and continues.
-     * Never throw from here - always graceful degradation.
-     */
-    onError: (error: Error) => {
-      console.error("[opencode-brain] Plugin error:", error.message);
-
-      try {
-        captureSessionError(error, eventBuffer, currentSessionId);
-      } catch {
-        // Silent fail - don't create infinite error loop
-      }
-
-      // Don't re-throw - keep Opencode running
-    },
   };
 };
 
