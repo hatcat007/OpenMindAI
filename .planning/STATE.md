@@ -1,8 +1,8 @@
 # Project State: Opencode Brain
 
 **Current Position:** Phase 2 — Event Capture (IN PROGRESS)
-**Last Updated:** 2026-02-03 after Plan 02-01 execution
-**Overall Progress:** 22% (5 phases planned, 1 complete, 1 plan in Phase 2 complete)
+**Last Updated:** 2026-02-03 after Plan 02-02 execution
+**Overall Progress:** 26% (5 phases planned, 1 complete, 2 plans in Phase 2 complete)
 
 ---
 
@@ -41,7 +41,7 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | Phase | Status | Requirements | Progress |
 |-------|--------|--------------|----------|
 | 1 — Foundation | ✓ Complete | 16 | 100% |
-| 2 — Event Capture | ○ In Progress | 10 | 1/4 plans |
+| 2 — Event Capture | ○ In Progress | 10 | 2/4 plans |
 | 3 — Context Injection | ○ Pending | 6 | 0% |
 | 4 — Commands & Tool | ○ Pending | 10 | 0% |
 | 5 — Polish | ○ Pending | 3 | 0% |
@@ -63,6 +63,9 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 | Buffer maxSize: 50 entries | Balances memory vs I/O efficiency | 2026-02-03 |
 | Buffer flushInterval: 5000ms | Good balance between freshness and batching | 2026-02-03 |
 | stop() flushes by default | Prevents data loss on session end | 2026-02-03 |
+| Privacy filtering pure functions | No side effects for easier testing and composition | 2026-02-03 |
+| Regex patterns for .env variants | Handle .env, .env.local, .env.development.local, etc. | 2026-02-03 |
+| Cross-platform path normalization | Convert backslash to forward slash before matching | 2026-02-03 |
 
 ---
 
@@ -81,13 +84,21 @@ None currently. Ready to begin Phase 2.
 
 ## Next Actions
 
-1. Execute Plan 02-02: Privacy filtering (secret detection + file exclusion)
-2. Execute Plan 02-03: Tool event capture (tool.execute.after integration)
-3. Execute Plan 02-04: File edit and error capture (file.edited integration)
+1. Execute Plan 02-03: Tool event capture (tool.execute.after integration)
+2. Execute Plan 02-04: File edit and error capture (file.edited integration)
 
 ---
 
 ## Context History
+
+**2026-02-03 — Phase 2 Plan 2 Complete: Privacy Filtering Layer**
+- Privacy filter module with 8 secret detection patterns
+- File exclusion system (.env, .git/, certificates, sensitive names)
+- Bash command redaction for auth flags
+- 74 unit tests covering all patterns and edge cases
+- All functions exported from index.ts
+- 100% TypeScript coverage, zero errors
+- Ready for tool event capture integration
 
 **2026-02-03 — Phase 2 Plan 1 Complete: Event Buffering Infrastructure**
 - EventBuffer class created with configurable thresholds
@@ -161,6 +172,7 @@ None currently. Ready to begin Phase 2.
 | 01-02-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
 | 01-03-SUMMARY.md | .planning/phases/01-foundation/ | ✓ Complete |
 | 02-01-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
+| 02-02-SUMMARY.md | .planning/phases/02-event-capture/ | ✓ Complete |
 
 ---
 
@@ -170,4 +182,4 @@ All planning artifacts and source code committed.
 
 ---
 
-*State updated: 2026-02-03*
+*State updated: 2026-02-03 after completing 02-02 privacy filtering*
