@@ -783,6 +783,8 @@ var OpencodeBrainPlugin = async ({
       error instanceof Error ? error.message : String(error)
     );
     return {
+      config: async () => {
+      },
       "session.created": async () => {
       },
       "tool.execute.after": async () => {
@@ -834,6 +836,16 @@ var OpencodeBrainPlugin = async ({
     }
   }
   return {
+    /**
+     * Config hook - Called when plugin configuration is loaded from opencode.json
+     *
+     * This allows the plugin to react to configuration changes at runtime.
+     */
+    config: async (input) => {
+      if (config.debug) {
+        console.log("[opencode-brain] Config hook called", input);
+      }
+    },
     /**
      * Session created - Called when a new Opencode session starts
      *
