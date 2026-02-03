@@ -204,14 +204,53 @@ bun test
 npm test
 ```
 
-### Confidence Assessment
+### Bun Compatibility Test Results
+
+**Test Date:** 2025-02-03
+**Bun Version:** 1.3.8
+**@memvid/sdk Version:** 2.0.149
+
+**Findings:**
+
+⚠️ **CRITICAL ISSUE:** @memvid/sdk has Bun compatibility issues
+
+1. **Promise-based API:** `create()` and `use()` return Promises (async), not direct objects
+2. **Node.js crypto incompatibility:** SDK analytics uses `crypto.createHash()` which behaves differently in Bun
+   - Error: `The "data" argument must be of type string or an instance of Buffer...`
+   - Location: `analytics.js:105` in `generateAnonId()`
+
+**Workaround Options:**
+
+**Option A: Fix SDK (Recommended)**
+- Contact memvid team about Bun compatibility
+- Request analytics bypass flag or Bun-compatible crypto
+- SDK is closed-source, requires vendor support
+
+**Option B: Use Alternative Storage**
+- Replace @memvid/sdk with pure-JavaScript alternative
+- Options: SQLite, JSON-based storage, leveldb, etc.
+- Loses vector search and advanced features
+
+**Option C: Hybrid Approach**
+- Keep @memvid/sdk for Node.js/Claude Code
+- Create Bun-compatible storage layer for Opencode
+- Maintain feature parity manually
+
+**Immediate Recommendation:**
+Given the Bun incompatibility is blocking, recommend **Option C** - create a Bun-compatible storage adapter that provides the same API surface as @memvid/sdk but uses native Bun APIs. This allows:
+- Immediate development to proceed
+- Future migration back to @memvid/sdk once fixed
+- Feature parity testing between implementations
+
+### Confidence Assessment (Updated)
 
 | Component | Confidence | Risk |
 |-----------|------------|------|
 | TypeScript compilation | HIGH | Bun has native TS support |
-| @memvid/sdk | MEDIUM-HIGH | Needs testing with Bun |
-| File operations | HIGH | Standard APIs |
-| proper-lockfile | MEDIUM | May need alternative |
+| @memvid/sdk | **LOW** | ⚠️ Bun incompatibility confirmed |
+| Alternative storage | MEDIUM | Need to implement |
+| File operations | HIGH | Standard APIs work |
+| proper-lockfile | MEDIUM | May need Bun alternative |
 | Plugin SDK | HIGH | Official Opencode API |
 | Event system | HIGH | Well documented |
 

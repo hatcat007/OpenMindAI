@@ -9,12 +9,14 @@
 **Requirements:** CORE-01..06, PLUG-01..06, PRIV-05, INST-01..05
 **Success Criteria:** Plugin loads, creates mind.mv2, basic storage works
 
+⚠️ **CRITICAL CHANGE:** @memvid/sdk is NOT compatible with Bun. Must implement Bun-compatible storage layer.
+
 | # | Requirement | Description |
 |---|-------------|-------------|
 | 1 | CORE-01 | Single-file storage in .opencode/mind.mv2 |
-| 2 | CORE-02 | @memvid/sdk integration (Bun compatible) |
+| 2 | CORE-02 | Bun-compatible storage implementation (replaces @memvid/sdk) |
 | 3 | CORE-03 | Multi-project support via worktree detection |
-| 4 | CORE-04 | File locking to prevent corruption |
+| 4 | CORE-04 | File locking to prevent corruption (Bun-compatible) |
 | 5 | PLUG-01 | Native plugin structure with TypeScript |
 | 6 | PLUG-02 | @opencode-ai/plugin SDK integration |
 | 7 | PLUG-03 | NPM package structure for opencode-brain |
@@ -25,8 +27,9 @@
 **Phase Success:** 
 - [ ] Plugin loads without errors in Opencode
 - [ ] mind.mv2 created automatically on first run
-- [ ] Can write and read from storage layer
+- [ ] Can write and read from Bun-compatible storage layer
 - [ ] Works with Bun runtime
+- [ ] Storage API matches @memvid/sdk surface for future migration
 
 ---
 

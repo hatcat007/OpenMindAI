@@ -2,16 +2,70 @@
 
 ## Critical Challenges
 
-### 1. Bun vs Node.js Compatibility ⚠️ HIGH RISK
+### 1. @memvid/sdk Bun Incompatibility ⚠️ CRITICAL RISK
+
+**CONFIRMED ISSUE - 2025-02-03**
 
 **The Problem:**
-Opencode uses Bun as its JavaScript runtime, not Node.js. While Bun has good Node.js compatibility, there are edge cases.
+@memvid/sdk has critical Bun compatibility issues that prevent it from working with Opencode.
+
+**Specific Issues Found:**
+1. **Node.js crypto incompatibility**: SDK analytics uses `crypto.createHash()` which fails in Bun
+   - Error: `TypeError: The "data" argument must be of type string...`
+   - File: `analytics.js:105` in `generateAnonId()`
+2. **API returns Promises**: `create()` and `use()` return Promises, requiring await
+
+**Test Results:**
+```
+Bun v1.3.8
+✗ crypto.createHash() fails in Bun
+✗ Cannot create memory instance
+✗ Cannot write or read data
+```
+
+**Impact:**
+- **BLOCKING**: Cannot use existing @memvid/sdk with Bun
+- Requires alternative storage solution for Opencode
+- Loses vector search and advanced features unless reimplemented
+
+**Solutions (in order of preference):**
+
+**Option A: Alternative Storage (RECOMMENDED)**
+- Implement Bun-compatible storage layer
+- Use SQLite or JSON-based storage
+- Reimplement core features (search, compression, etc.)
+- Maintain same API surface for future migration
+
+**Option B: Vendor Fix**
+- Contact memvid team about Bun compatibility
+- Request analytics bypass flag
+- Timeline uncertain, SDK is closed-source
+
+**Option C: Skip Bun**
+- Create Node.js-only version
+- Users must run Opencode in Node mode
+- Loses compatibility with standard Opencode
+
+**Prevention Strategy:**
+1. **Implement Bun-compatible storage immediately**
+2. **Abstract storage interface** to allow future SDK swap
+3. **Document the limitation** in README
+4. **Create feature parity matrix** between implementations
+
+**Phase to Address:** Phase 1 - Foundation (IMMEDIATE)
+
+---
+
+### 2. Bun vs Node.js General Compatibility ⚠️ MEDIUM RISK
+
+**The Problem:**
+Beyond @memvid/sdk, other Node.js-specific code may have issues with Bun.
 
 **Specific Risks:**
-- `@memvid/sdk` uses native Rust bindings via Node-API
-- Bun's Node-API support is newer and may have gaps
-- File locking mechanisms may differ
-- Some Node.js APIs might behave subtly differently
+- `proper-lockfile` uses Node.js-specific APIs
+- Some npm packages have native bindings
+- File system edge cases
+- Stream handling differences
 
 **Warning Signs:**
 - Native module loading errors
@@ -20,10 +74,10 @@ Opencode uses Bun as its JavaScript runtime, not Node.js. While Bun has good Nod
 - Memory leaks
 
 **Prevention Strategy:**
-1. **Test early and thoroughly** with Bun
-2. **Create test suite** that runs in both Node and Bun
-3. **Have fallback** for native modules (pure JS alternative)
-4. **Monitor Bun compatibility** issues on GitHub
+1. **Test all dependencies** with Bun
+2. **Use Bun-compatible alternatives** where needed
+3. **Implement Bun-native solutions** for critical paths
+4. **Create comprehensive test suite**
 
 **Phase to Address:** Phase 1 - Foundation
 

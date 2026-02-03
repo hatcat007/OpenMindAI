@@ -10,9 +10,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Core Storage (CORE)
 
 - [ ] **CORE-01**: Store memories in single `.opencode/mind.mv2` file
-- [ ] **CORE-02**: Use @memvid/sdk for memory operations (tested with Bun)
+- [ ] **CORE-02**: Implement Bun-compatible storage layer (⚠️ @memvid/sdk NOT compatible with Bun)
 - [ ] **CORE-03**: Support multi-project (separate memory per project directory)
-- [ ] **CORE-04**: Handle file locking to prevent corruption during concurrent access
+- [ ] **CORE-04**: Handle file locking to prevent corruption during concurrent access (Bun-compatible)
 - [ ] **CORE-05**: Compress old sessions to manage file size
 - [ ] **CORE-06**: Provide memory reset command with confirmation
 

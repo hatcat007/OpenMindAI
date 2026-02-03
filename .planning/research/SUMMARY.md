@@ -53,14 +53,19 @@ Opencode is a **96.3k+ star open-source AI coding agent** with a unique architec
 
 **Target (Opencode-Brain):**
 - **Bun runtime** (major change)
-- Same @memvid/sdk (needs Bun compatibility testing)
+- ⚠️ @memvid/sdk **NOT COMPATIBLE** with Bun
+- **Alternative storage needed** (SQLite or JSON-based)
 - @opencode-ai/plugin for SDK
 - Native TypeScript (no separate compilation step)
 
-**Risk Assessment:**
-- @memvid/sdk with Bun: **MEDIUM-HIGH** (native bindings)
+**Risk Assessment (Updated):**
+- @memvid/sdk with Bun: **NOT COMPATIBLE** ⚠️ CRITICAL
+- Alternative storage: **MEDIUM** (needs implementation)
 - File locking: **MEDIUM** (may need Bun alternative)
 - General logic: **LOW** (standard APIs compatible)
+
+**CRITICAL FINDING:**
+@memvid/sdk fails with Bun due to Node.js crypto incompatibility in analytics module. Must implement alternative storage solution.
 
 ### 4. Recommended Architecture
 

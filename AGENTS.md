@@ -71,6 +71,11 @@ npm run typecheck
 - For SDK errors, check specific error message patterns for corruption detection
 - Silent fail for non-critical operations (backup pruning, cleanup)
 
+### ESLint Rules
+- `@typescript-eslint/no-unused-vars`: Error level, args prefixed with `_` allowed
+- `@typescript-eslint/no-explicit-any`: Warn level, use with `// eslint-disable-next-line` comment
+- Files in `dist/` and `node_modules/` are ignored
+
 ### Conventions
 - JSDoc comments for all exported functions and classes
 - File header comments describing the module purpose
@@ -114,3 +119,10 @@ src/
 - Outputs: index.js + types, hook scripts, utility scripts
 - ESM format only
 - Source maps and declarations generated
+- Hooks are bundled as separate entries (smart-install, session-start, post-tool-use, stop)
+- Scripts are bundled separately (find, ask, stats, timeline)
+- External dependencies: `@memvid/sdk` is externalized
+
+### Dependencies
+- Runtime: `@memvid/sdk ^2.0.149`, `proper-lockfile ^4.1.2`
+- Build target: Node.js 18+
