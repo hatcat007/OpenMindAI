@@ -19,6 +19,12 @@ export {
   getExclusionReasons,
 } from "./privacy/filter.js";
 
+// Event capture modules
+export { EventBuffer, createBuffer } from "./events/buffer.js";
+export { captureToolExecution } from "./events/tool-capture.js";
+export { captureFileEdit } from "./events/file-capture.js";
+export { captureSessionError } from "./events/error-capture.js";
+
 export { OpencodeBrainPlugin };
 export type { PluginConfig };
 export default OpencodeBrainPlugin;
