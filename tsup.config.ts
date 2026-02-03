@@ -1,32 +1,23 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: {
-    index: "src/index.ts",
-    "hooks/smart-install": "src/hooks/smart-install.ts",
-    "hooks/session-start": "src/hooks/session-start.ts",
-    "hooks/post-tool-use": "src/hooks/post-tool-use.ts",
-    "hooks/stop": "src/hooks/stop.ts",
-    // SDK-based scripts (no CLI dependency)
-    "scripts/find": "src/scripts/find.ts",
-    "scripts/ask": "src/scripts/ask.ts",
-    "scripts/stats": "src/scripts/stats.ts",
-    "scripts/timeline": "src/scripts/timeline.ts",
-  },
+  entry: ["src/index.ts"],
   format: ["esm"],
-  dts: { entry: { index: "src/index.ts" } },
-  clean: true,
-  sourcemap: true,
-  target: "node18",
-  outDir: "dist",
+  target: "esnext",
+  platform: "node",
+  bundle: true,
   splitting: false,
-  treeshake: true,
-  minify: false,
-  external: ["@memvid/sdk"],
+  sourcemap: true,
+  clean: true,
+  dts: true,
+  external: [
+    "@opencode-ai/plugin",  // Peer dependency
+    "bun:sqlite",           // Built-in Bun module
+    "bun:test"              // Built-in test module
+  ],
   esbuildOptions(options) {
-    // Add shebang only to hook files
     options.banner = {
-      js: "",
+      js: "#!/usr/bin/env bun",
     };
-  },
+  }
 });
