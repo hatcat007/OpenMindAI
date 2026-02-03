@@ -1,8 +1,8 @@
 # Project State: Opencode Brain
 
-**Current Position:** Phase 2 — Event Capture (COMPLETE) → Ready for Phase 3
-**Last Updated:** 2026-02-03 after Plan 02-03 execution
-**Overall Progress:** 33% (5 phases planned, 1 complete, 3 plans in Phase 2 complete)
+**Current Position:** Phase 2 — Event Capture ✓ COMPLETE → Ready for Phase 3
+**Last Updated:** 2026-02-03 after Phase 2 verification
+**Overall Progress:** 40% (5 phases planned, 2 complete)
 
 ---
 
@@ -14,7 +14,7 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 
 ---
 
-## Current Phase
+## Completed Phases
 
 **Phase 1: Foundation** ✓ COMPLETE
 **Goal:** Establish core storage and plugin architecture
@@ -36,13 +36,41 @@ See: .planning/PROJECT.md (updated 2025-02-03)
 
 ---
 
+**Phase 2: Event Capture** ✓ COMPLETE
+**Goal:** Capture session activity transparently
+**Requirements:** 10 (CAPT-01..06, PRIV-01..04, INST-05)
+**Status:** ✓ Complete — 195/195 tests passing, verified
+
+### Phase 2 Success Criteria
+- [x] Every tool use is captured — tool.execute.after handler
+- [x] File changes recorded with metadata — file.edited handler
+- [x] No noticeable slowdown — 0.62ms for 1000 events (well under 5% threshold)
+- [x] Secrets never appear in mind.mv2 — Privacy filter with 8 patterns
+
+### Phase 2 Plans Completed
+| Plan | Status | Description |
+|------|--------|-------------|
+| 02-01 | ✓ | EventBuffer with batched writes (27 tests) |
+| 02-02 | ✓ | Privacy filtering (74 tests, 8 secret patterns) |
+| 02-03 | ✓ | Tool event capture (61 tests, plugin integration) |
+| 02-04 | ✓ | File/error capture (33 tests, session tracking) |
+
+## Current Phase
+
+**Phase 3: Context Injection** ⏵ NEXT
+**Goal:** Make Opencode remember previous sessions
+**Requirements:** 6 (INJ-01..06)
+**Dependencies:** Phase 1 ✓, Phase 2 ✓
+
+---
+
 ## Phase Status
 
 | Phase | Status | Requirements | Progress |
 |-------|--------|--------------|----------|
 | 1 — Foundation | ✓ Complete | 16 | 100% |
-| 2 — Event Capture | ○ In Progress | 10 | 3/4 plans |
-| 3 — Context Injection | ○ Pending | 6 | 0% |
+| 2 — Event Capture | ✓ Complete | 10 | 100% |
+| 3 — Context Injection | ⏵ Next | 6 | 0% |
 | 4 — Commands & Tool | ○ Pending | 10 | 0% |
 | 5 — Polish | ○ Pending | 3 | 0% |
 
@@ -88,8 +116,14 @@ None currently. Ready to begin Phase 2.
 
 ## Next Actions
 
-1. Execute Plan 02-04: File edit and error capture (file.edited integration)
-2. Verify all event capture is working together (CAPT-01..06)
+1. **Phase 3: Context Injection** — Make Opencode remember previous sessions
+   - Run `/gsd-discuss-phase 3` to gather context and clarify approach
+   - Or `/gsd-plan-phase 3` to skip discussion and plan directly
+
+2. Key challenges for Phase 3:
+   - What format works best for context injection?
+   - How to handle Build vs Plan agents differently?
+   - Ensure context available for first user message
 
 ---
 

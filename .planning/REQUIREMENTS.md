@@ -27,12 +27,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Event Capture (CAPT)
 
-- [ ] **CAPT-01**: Capture `tool.execute.after` events (file reads, writes, bash commands)
-- [ ] **CAPT-02**: Capture `file.edited` events with change summaries
-- [ ] **CAPT-03**: Capture `session.error` events for bug tracking
-- [ ] **CAPT-04**: Batch writes to disk (don't write on every event)
-- [ ] **CAPT-05**: Implement in-memory buffering with periodic flush
-- [ ] **CAPT-06**: Filter sensitive data (passwords, API keys, .env files)
+- [x] **CAPT-01**: Capture `tool.execute.after` events (file reads, writes, bash commands) — `src/events/tool-capture.ts`
+- [x] **CAPT-02**: Capture `file.edited` events with change summaries — `src/events/file-capture.ts`
+- [x] **CAPT-03**: Capture `session.error` events for bug tracking — `src/events/error-capture.ts`
+- [x] **CAPT-04**: Batch writes to disk (don't write on every event) — EventBuffer with onFlush callback
+- [x] **CAPT-05**: Implement in-memory buffering with periodic flush — EventBuffer class, 5s interval
+- [x] **CAPT-06**: Filter sensitive data (passwords, API keys, .env files) — `src/privacy/filter.ts`
 
 ### Context Injection (INJ)
 
@@ -61,11 +61,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Privacy & Security (PRIV)
 
-- [ ] **PRIV-01**: 100% local storage (no cloud, no external APIs)
-- [ ] **PRIV-02**: Never capture .env files or files with secrets
-- [ ] **PRIV-03**: Filter bash commands that might contain passwords
-- [ ] **PRIV-04**: User controls what gets captured (opt-out per session if needed)
-- [ ] **PRIV-05**: Clear documentation of what is stored
+- [x] **PRIV-01**: 100% local storage (no cloud, no external APIs) — bun:sqlite in .opencode/mind.mv2
+- [x] **PRIV-02**: Never capture .env files or files with secrets — `shouldCaptureFile()` with exclusion patterns
+- [x] **PRIV-03**: Filter bash commands that might contain passwords — `sanitizeBashCommand()` with auth flag detection
+- [ ] **PRIV-04**: User controls what gets captured (opt-out per session if needed) — Phase 5
+- [x] **PRIV-05**: Clear documentation of what is stored — README.md
 
 ### Installation & Setup (INST)
 
@@ -73,7 +73,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **INST-02**: Zero configuration (works out of the box)
 - [ ] **INST-03**: Compatible with Bun runtime
 - [ ] **INST-04**: Works on macOS, Linux, Windows (WSL)
-- [ ] **INST-05**: No performance degradation of Opencode
+- [x] **INST-05**: No performance degradation of Opencode — Verified: 0.62ms for 1000 events (well under 5% threshold)
 
 ## v2 Requirements
 
