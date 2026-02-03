@@ -1,0 +1,8 @@
+[install]
+# Use text-based lockfile (human-readable)
+lockfile = "bun.lock"
+
+[test]
+# Jest-compatible test runner settings
+preload = []
+coverage = false

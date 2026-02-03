@@ -1,63 +1,38 @@
 {
-  "name": "claude-brain",
-  "version": "1.0.11",
-  "description": "Give Claude Code photographic memory in ONE portable file",
+  "name": "opencode-brain",
+  "version": "0.1.0",
+  "description": "Memory persistence for Opencode - remember everything across sessions",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsup && cp src/hooks/hooks.json dist/hooks/",
+    "build": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "bun test",
     "prepublishOnly": "npm run build"
   },
-  "files": [
-    "dist",
-    "skills",
-    "commands",
-    ".claude-plugin"
-  ],
-  "keywords": [
-    "claude",
-    "claude-code",
-    "claude-code-plugin",
-    "anthropic",
-    "memory",
-    "ai-memory",
-    "context-persistence",
-    "memvid",
-    "portable-memory",
-    "persistent-memory",
-    "llm-memory",
-    "ai-assistant"
-  ],
-  "author": "Memvid <hello@memvid.com>",
+  "files": ["dist/", "opencode.json", "README.md"],
+  "keywords": ["opencode", "plugin", "memory", "ai", "coding"],
+  "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/memvid/claude-brain.git"
+  "engines": {
+    "bun": ">=1.0.0"
   },
-  "homepage": "https://memvid.com",
-  "bugs": {
-    "url": "https://github.com/memvid/claude-brain/issues"
-  },
-  "dependencies": {
-    "@memvid/sdk": "^2.0.149",
-    "proper-lockfile": "^4.1.2"
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "@types/node": "^22.0.0",
-    "@types/proper-lockfile": "^4.1.4",
-    "eslint": "^9.0.0",
-    "tsup": "^8.0.0",
+    "@types/bun": "latest",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.50.0",
-    "vitest": "^3.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "tsup": "^8.0.0"
   }
 }

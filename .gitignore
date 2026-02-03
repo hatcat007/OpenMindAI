@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output (dist is included for GitHub plugin installation)
-# dist/
+# Build output
+dist/
 
 # IDE
 .idea/
@@ -27,8 +27,13 @@ npm-debug.log*
 .env.local
 .env.*.local
 
-# Memory files (users shouldn't commit their memories - too large for git)
-# Use Git LFS if you really need to version your memory
+# Memory files - Opencode Brain storage
+.opencode/mind.mv2
+.opencode/mind.mv2.lock
+.opencode/mind.mv2-shm
+.opencode/mind.mv2-wal
+
+# Legacy Claude Brain storage (migration phase)
 .claude/
 *.mv2
 
@@ -36,3 +41,6 @@ npm-debug.log*
 *.tmp
 *.temp
 .cache/
+
+# Bun lockfile (legacy binary format)
+bun.lockb
