@@ -64,6 +64,12 @@
 - [ ] No noticeable slowdown (benchmark <5% latency increase)
 - [ ] Secrets never appear in mind.mv2
 
+**Plans:** 4 plans in 2 waves
+- [ ] 02-01-PLAN.md — Event buffering infrastructure (EventBuffer class)
+- [ ] 02-02-PLAN.md — Privacy filtering (secret detection + file exclusion)
+- [ ] 02-03-PLAN.md — Tool event capture (tool.execute.after integration)
+- [ ] 02-04-PLAN.md — File edit and error capture (file.edited integration)
+
 ---
 
 ## Phase 3: Context Injection
