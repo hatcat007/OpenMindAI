@@ -48,30 +48,16 @@ Once installed, use these slash commands in Opencode:
 
 ## Configuration
 
-Optional configuration in `opencode.json`:
+The plugin works out of the box with sensible defaults. Configuration can be controlled via environment variables:
 
-```json
-{
-  "plugin": ["opencode-brain"],
-  "opencode-brain": {
-    "storagePath": ".opencode/mind.mv2",
-    "autoInitialize": true,
-    "debug": false
-  }
-}
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENCODE_BRAIN_STORAGE_PATH` | `.opencode/mind.mv2` | Path to SQLite database file |
+| `OPENCODE_BRAIN_DEBUG` | `false` | Enable debug logging (`true` or `false`) |
 
-### Configuration Options
+### Storage Location
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `storagePath` | string | `.opencode/mind.mv2` | Path to SQLite database file |
-| `autoInitialize` | boolean | `true` | Auto-create storage on first run |
-| `debug` | boolean | `false` | Enable debug logging |
-
-## Storage Location
-
-By default, memories are stored in `.opencode/mind.mv2` (SQLite format).
+By default, memories are stored in `.opencode/mind.mv2` (SQLite format) within your project directory.
 
 **Important:** Add this to your `.gitignore`:
 
