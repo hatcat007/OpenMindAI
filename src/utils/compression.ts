@@ -120,7 +120,7 @@ function compressBashOutput(
   output: string
 ): string {
   const command = (toolInput?.command as string) || "command";
-  const shortCmd = command.split("\n")[0].slice(0, 100);
+  const shortCmd = (command.split("\n")[0] || "").slice(0, 100);
   const lines = output.split("\n");
 
   // Check for errors
@@ -184,7 +184,7 @@ function compressGrepOutput(
   const files = new Set<string>();
   lines.forEach((line) => {
     const match = line.match(/^([^:]+):/);
-    if (match) files.add(match[1]);
+    if (match?.[1]) files.add(match[1]);
   });
 
   const parts: string[] = [
@@ -353,7 +353,7 @@ function extractFunctionSignatures(code: string): string[] {
   patterns.forEach((pattern) => {
     let match;
     while ((match = pattern.exec(code)) !== null) {
-      functions.push(match[1]);
+      if (match[1]) functions.push(match[1]);
     }
   });
 
@@ -375,7 +375,7 @@ function extractClassNames(code: string): string[] {
   patterns.forEach((pattern) => {
     let match;
     while ((match = pattern.exec(code)) !== null) {
-      classes.push(match[1]);
+      if (match[1]) classes.push(match[1]);
     }
   });
 

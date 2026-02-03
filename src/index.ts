@@ -1,34 +1,14 @@
 /**
- * Memvid Mind
+ * Opencode Brain Plugin
  *
- * Give Claude photographic memory in ONE portable file.
+ * Memory persistence for Opencode - remember everything across sessions.
  *
  * @packageDocumentation
  */
 
-export { Mind, getMind, resetMind } from "./core/mind.js";
-export type {
-  Observation,
-  ObservationType,
-  ObservationMetadata,
-  SessionSummary,
-  InjectedContext,
-  MindConfig,
-  MindStats,
-  MemorySearchResult,
-  HookInput,
-  HookOutput,
-} from "./types.js";
-export { DEFAULT_CONFIG } from "./types.js";
-export {
-  generateId,
-  estimateTokens,
-  truncateToTokens,
-  formatTimestamp,
-  safeJsonParse,
-  readStdin,
-  writeOutput,
-  debug,
-  extractKeyInfo,
-  classifyObservationType,
-} from "./utils/helpers.js";
+import { OpencodeBrainPlugin } from "./plugin.js";
+import type { PluginConfig } from "./config.js";
+
+export { OpencodeBrainPlugin };
+export type { PluginConfig };
+export default OpencodeBrainPlugin;

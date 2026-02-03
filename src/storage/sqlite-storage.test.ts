@@ -179,11 +179,11 @@ describe("BrainStorage", () => {
 
     it("should return correct stats after writes", () => {
       // Write entries of different types
-      const types = ["discovery", "discovery", "decision", "feature"] as const;
+      const types: Array<"discovery" | "decision" | "feature"> = ["discovery", "discovery", "decision", "feature"];
       for (let i = 0; i < 4; i++) {
         storage.write(`stats-test-${i}`, {
           id: `stats-test-${i}`,
-          type: types[i],
+          type: types[i]!,
           content: `Test content ${i}`,
           createdAt: Date.now() + i * 1000,
           metadata: {},
