@@ -38,9 +38,10 @@ export const SENSITIVE_PATTERNS: RegExp[] = [
  * These patterns match paths that should never be stored.
  */
 export const EXCLUDED_PATH_PATTERNS: RegExp[] = [
-  // .env files and variations
-  /\.env$/,
-  /\.env\.\w+$/,
+  // .env files and variations (.env.local, .env.development.local, etc.)
+  // Matches .env at root or in any directory
+  /(^|\/)\.env$/,
+  /(^|\/)\.env\.[\w.-]+$/,
   
   // Git directory
   /\.git\//,
