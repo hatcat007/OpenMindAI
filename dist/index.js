@@ -314,6 +314,489 @@ function ensureDirectory(filePath) {
   }
 }
 
+// src/events/buffer.ts
+var DEFAULT_BUFFER_CONFIG = {
+  maxSize: 50,
+  flushIntervalMs: 5e3,
+  onFlush: () => {
+  }
+};
+var EventBuffer = class {
+  entries = [];
+  config;
+  lastFlush = Date.now();
+  timer = null;
+  isFlushing = false;
+  /**
+   * Create a new event buffer
+   * @param config - Buffer configuration (partial, defaults applied)
+   */
+  constructor(config) {
+    this.config = {
+      ...DEFAULT_BUFFER_CONFIG,
+      ...config
+    };
+    if (!this.config.onFlush || this.config.onFlush === DEFAULT_BUFFER_CONFIG.onFlush) {
+      console.error("[EventBuffer] Warning: onFlush callback not provided");
+    }
+  }
+  /**
+   * Add an entry to the buffer
+   * Triggers flush if buffer reaches maxSize
+   * @param entry - Memory entry to buffer
+   */
+  add(entry) {
+    this.entries.push(entry);
+    if (this.entries.length >= this.config.maxSize) {
+      this.flush();
+    }
+  }
+  /**
+   * Flush all buffered entries to storage
+   * Clears buffer after successful flush
+   * Never throws - errors are logged to console.error
+   */
+  flush() {
+    if (this.isFlushing) {
+      return;
+    }
+    if (this.entries.length === 0) {
+      return;
+    }
+    this.isFlushing = true;
+    try {
+      const entriesToFlush = [...this.entries];
+      this.entries = [];
+      this.config.onFlush(entriesToFlush);
+      this.lastFlush = Date.now();
+    } catch (error) {
+      console.error(
+        "[EventBuffer] Flush error:",
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      this.isFlushing = false;
+    }
+  }
+  /**
+   * Clear the buffer without flushing
+   * Use with caution - may cause data loss
+   */
+  clear() {
+    this.entries = [];
+  }
+  /**
+   * Start the periodic flush timer
+   * Flushes buffer at flushIntervalMs intervals
+   */
+  start() {
+    this.stop();
+    this.timer = setInterval(() => {
+      this.flush();
+    }, this.config.flushIntervalMs);
+  }
+  /**
+   * Stop the periodic flush timer
+   * Optionally flushes remaining entries
+   * @param options - Stop options
+   * @param options.flushRemaining - Whether to flush before stopping (default: true)
+   */
+  stop(options) {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (options?.flushRemaining !== false) {
+      this.flush();
+    }
+  }
+  /**
+   * Get current buffer size
+   * @returns Number of entries in buffer
+   */
+  size() {
+    return this.entries.length;
+  }
+  /**
+   * Get time since last flush
+   * @returns Milliseconds since last flush
+   */
+  getLastFlushTime() {
+    return Date.now() - this.lastFlush;
+  }
+  /**
+   * Check if buffer is currently flushing
+   * @returns True if flush is in progress
+   */
+  isFlushInProgress() {
+    return this.isFlushing;
+  }
+};
+function createBuffer(onFlush, options) {
+  return new EventBuffer({
+    ...options,
+    onFlush
+  });
+}
+
+// src/privacy/filter.ts
+var SENSITIVE_PATTERNS = [
+  // Password patterns
+  /password\s*[:=]\s*\S+/gi,
+  /[a-zA-Z0-9_]*password[a-zA-Z0-9_]*\s*[=:]\s*["']?[^"'\s]+["']?/gi,
+  // API key patterns
+  /api[_-]?key\s*[:=]\s*\S+/gi,
+  // Token patterns
+  /token\s*[:=]\s*\S+/gi,
+  // Secret patterns
+  /secret\s*[:=]\s*\S+/gi,
+  // Private key patterns
+  /private[_-]?key\s*[:=]\s*\S+/gi,
+  /-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----/,
+  // URL with embedded credentials
+  /:\/\/[^\s:@]+:[^\s:@]+@/g
+];
+var EXCLUDED_PATH_PATTERNS = [
+  // .env files and variations (.env.local, .env.development.local, etc.)
+  // Matches .env at root or in any directory
+  /(^|\/)\.env$/,
+  /(^|\/)\.env\.[\w.-]+$/,
+  // Git directory
+  /\.git\//,
+  // Certificate and key files
+  /\.(key|pem|p12|pfx)$/i,
+  // Files with sensitive names in path
+  /secret/i,
+  /password/i,
+  /credential/i,
+  /token/i,
+  /private/i
+];
+var SENSITIVE_BASH_PATTERNS = [
+  // curl with user credentials
+  /curl.*-u\s/,
+  /curl.*--user\s/,
+  // ssh with password
+  /ssh.*-p\s/,
+  // mysql with password
+  /mysql.*-p\s/,
+  /mysql.*--password/,
+  // postgres with password
+  /psql.*-W\s/,
+  /psql.*--password/
+];
+var REDACTED_STRING = "[REDACTED]";
+var REDACTED_COMMAND_STRING = "[REDACTED BASH COMMAND]";
+function sanitizeContent(content) {
+  if (!content || typeof content !== "string") {
+    return "";
+  }
+  let sanitized = content;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, (match) => {
+      const colonIndex = match.indexOf(":");
+      const equalsIndex = match.indexOf("=");
+      if (colonIndex > 0 && (equalsIndex === -1 || colonIndex < equalsIndex)) {
+        return match.substring(0, colonIndex + 1) + " " + REDACTED_STRING;
+      }
+      if (equalsIndex > 0 && (colonIndex === -1 || equalsIndex < colonIndex)) {
+        return match.substring(0, equalsIndex + 1) + REDACTED_STRING;
+      }
+      if (match.includes("://")) {
+        return match.replace(/:\/\/[^:]+:[^@]+@/, "://" + REDACTED_STRING + "@");
+      }
+      return REDACTED_STRING;
+    });
+  }
+  return sanitized;
+}
+function shouldCaptureFile(filePath) {
+  if (!filePath || typeof filePath !== "string") {
+    return false;
+  }
+  const normalizedPath = filePath.replace(/\\/g, "/");
+  for (const pattern of EXCLUDED_PATH_PATTERNS) {
+    if (pattern.test(normalizedPath)) {
+      return false;
+    }
+  }
+  return true;
+}
+function sanitizeBashCommand(command) {
+  if (!command || typeof command !== "string") {
+    return null;
+  }
+  const trimmedCommand = command.trim();
+  if (trimmedCommand.length === 0) {
+    return null;
+  }
+  for (const pattern of SENSITIVE_PATTERNS) {
+    if (pattern.test(trimmedCommand)) {
+      return REDACTED_COMMAND_STRING;
+    }
+  }
+  for (const pattern of SENSITIVE_BASH_PATTERNS) {
+    if (pattern.test(trimmedCommand)) {
+      return REDACTED_COMMAND_STRING;
+    }
+  }
+  return trimmedCommand;
+}
+function isSensitiveContent(content) {
+  if (!content || typeof content !== "string") {
+    return false;
+  }
+  for (const pattern of SENSITIVE_PATTERNS) {
+    if (pattern.test(content)) {
+      return true;
+    }
+  }
+  return false;
+}
+function sanitizeObject(obj) {
+  if (typeof obj === "string") {
+    return sanitizeContent(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeObject(item));
+  }
+  if (obj !== null && typeof obj === "object") {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes("password") || lowerKey.includes("secret") || lowerKey.includes("token") || lowerKey.includes("key") || lowerKey.includes("credential")) {
+        sanitized[key] = REDACTED_STRING;
+      } else {
+        sanitized[key] = sanitizeObject(value);
+      }
+    }
+    return sanitized;
+  }
+  return obj;
+}
+function getExclusionReasons(filePath) {
+  if (!filePath || typeof filePath !== "string") {
+    return ["Invalid path"];
+  }
+  const normalizedPath = filePath.replace(/\\/g, "/");
+  const reasons = [];
+  const patternDescriptions = [
+    [/\.env$/, ".env file"],
+    [/\.env\.\w+$/, ".env variant file"],
+    [/\.git\//, "Git directory file"],
+    [/\.(key|pem|p12|pfx)$/i, "Certificate/key file"],
+    [/secret/i, "Path contains 'secret'"],
+    [/password/i, "Path contains 'password'"],
+    [/credential/i, "Path contains 'credential'"],
+    [/token/i, "Path contains 'token'"],
+    [/private/i, "Path contains 'private'"]
+  ];
+  for (const [pattern, description] of patternDescriptions) {
+    if (pattern.test(normalizedPath)) {
+      reasons.push(description);
+    }
+  }
+  return reasons;
+}
+
+// src/events/tool-capture.ts
+function determineObservationType(tool) {
+  const typeMap = {
+    search: "discovery",
+    read: "discovery",
+    glob: "discovery",
+    ask: "discovery",
+    write: "solution",
+    bash: "solution",
+    edit: "refactor"
+  };
+  return typeMap[tool] || "pattern";
+}
+function extractFilesFromArgs(args) {
+  const files = [];
+  if (!args || typeof args !== "object") {
+    return files;
+  }
+  const filePathKeys = ["filePath", "path", "file"];
+  for (const key of filePathKeys) {
+    const value = args[key];
+    if (typeof value === "string" && value.length > 0) {
+      files.push(value);
+    }
+  }
+  if (Array.isArray(args.files)) {
+    for (const file of args.files) {
+      if (typeof file === "string" && file.length > 0) {
+        files.push(file);
+      }
+    }
+  }
+  if (args.oldString || args.newString) {
+    if (files.length === 0 && args.filePath) {
+      files.push(String(args.filePath));
+    }
+  }
+  return Array.from(new Set(files.filter((f) => typeof f === "string" && f.length > 0)));
+}
+function formatToolContent(tool, args) {
+  const safeArgs = args || {};
+  switch (tool) {
+    case "read": {
+      const filePath = safeArgs.filePath || safeArgs.path || safeArgs.file;
+      if (typeof filePath === "string") {
+        return `Read file: ${filePath}`;
+      }
+      return "Read file";
+    }
+    case "write": {
+      const filePath = safeArgs.filePath || safeArgs.path || safeArgs.file;
+      if (typeof filePath === "string") {
+        return `Wrote file: ${filePath}`;
+      }
+      return "Wrote file";
+    }
+    case "edit": {
+      const filePath = safeArgs.filePath || safeArgs.path || safeArgs.file;
+      if (typeof filePath === "string") {
+        return `Edited file: ${filePath}`;
+      }
+      return "Edited file";
+    }
+    case "bash": {
+      const command = safeArgs.command;
+      if (typeof command === "string") {
+        return `Executed: ${command}`;
+      }
+      return "Executed bash command";
+    }
+    case "search": {
+      const pattern = safeArgs.pattern || safeArgs.query;
+      if (typeof pattern === "string") {
+        return `Searched: ${pattern}`;
+      }
+      return "Performed search";
+    }
+    case "glob": {
+      const pattern = safeArgs.pattern;
+      if (typeof pattern === "string") {
+        return `Glob search: ${pattern}`;
+      }
+      return "Performed glob search";
+    }
+    case "ask": {
+      const question = safeArgs.question;
+      if (typeof question === "string") {
+        const truncated = question.length > 100 ? question.substring(0, 100) + "..." : question;
+        return `Asked: ${truncated}`;
+      }
+      return "Asked question";
+    }
+    default:
+      return `Used ${tool} tool`;
+  }
+}
+function captureToolExecution(input, buffer) {
+  try {
+    const observationType = determineObservationType(input.tool);
+    const formattedContent = formatToolContent(input.tool, input.args);
+    let sanitizedContent;
+    if (input.tool === "bash" && input.args?.command) {
+      const sanitizedCommand = sanitizeBashCommand(String(input.args.command));
+      if (sanitizedCommand === null) {
+        sanitizedContent = "[REDACTED BASH COMMAND]";
+      } else if (sanitizedCommand === "[REDACTED BASH COMMAND]") {
+        sanitizedContent = sanitizedCommand;
+      } else {
+        sanitizedContent = `Executed: ${sanitizedCommand}`;
+      }
+    } else {
+      sanitizedContent = sanitizeContent(formattedContent);
+    }
+    const files = extractFilesFromArgs(input.args || {});
+    const entry = {
+      id: input.callID || crypto.randomUUID(),
+      type: observationType,
+      content: sanitizedContent,
+      createdAt: Date.now(),
+      metadata: {
+        sessionId: input.sessionID,
+        tool: input.tool,
+        summary: `${input.tool} executed`,
+        files: files.length > 0 ? files : void 0
+      }
+    };
+    buffer.add(entry);
+  } catch (error) {
+    console.error(
+      "[ToolCapture] Failed to capture tool execution:",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+// src/events/file-capture.ts
+function captureFileEdit(input, buffer, sessionId) {
+  try {
+    if (!shouldCaptureFile(input.filePath)) {
+      return false;
+    }
+    const entry = {
+      id: crypto.randomUUID(),
+      type: "refactor",
+      content: `File modified: ${input.filePath}`,
+      createdAt: Date.now(),
+      metadata: {
+        sessionId,
+        summary: `Edited ${input.filePath.split("/").pop() || input.filePath}`,
+        files: [input.filePath]
+      }
+    };
+    buffer.add(entry);
+    return true;
+  } catch (error) {
+    console.error(
+      "[FileCapture] Failed to capture file edit:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return false;
+  }
+}
+
+// src/events/error-capture.ts
+function captureSessionError(error, buffer, sessionId) {
+  try {
+    if (isSensitiveContent(error.message)) {
+      const entry2 = {
+        id: crypto.randomUUID(),
+        type: "problem",
+        content: "Session error: [REDACTED - contains sensitive data]",
+        createdAt: Date.now(),
+        metadata: {
+          sessionId,
+          summary: `Error: ${error.name}`,
+          error: error.name,
+          redacted: true
+        }
+      };
+      buffer.add(entry2);
+      return;
+    }
+    const entry = {
+      id: crypto.randomUUID(),
+      type: "problem",
+      content: `Session error: ${error.message}`,
+      createdAt: Date.now(),
+      metadata: {
+        sessionId,
+        summary: `Error: ${error.name}`,
+        error: error.name
+      }
+    };
+    buffer.add(entry);
+  } catch {
+  }
+}
+
 // src/plugin.ts
 var OpencodeBrainPlugin = async ({
   client,
@@ -328,6 +811,7 @@ var OpencodeBrainPlugin = async ({
   });
   const projectPath = worktree || directory;
   const storagePath = getStoragePath(projectPath, config);
+  let currentSessionId = "unknown";
   let storage;
   try {
     storage = createStorage({ filePath: storagePath });
@@ -342,6 +826,26 @@ var OpencodeBrainPlugin = async ({
       }
     };
   }
+  const eventBuffer = new EventBuffer({
+    maxSize: 50,
+    flushIntervalMs: 5e3,
+    onFlush: (entries) => {
+      try {
+        for (const entry of entries) {
+          storage.write(entry.id, entry);
+        }
+        if (config.debug) {
+          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
+        }
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Failed to flush entries:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+  });
+  eventBuffer.start();
   if (config.debug) {
     try {
       const stats = storage.stats();
@@ -359,10 +863,11 @@ var OpencodeBrainPlugin = async ({
      * Session created - Called when a new Opencode session starts
      *
      * This is where context injection would happen in Phase 3.
-     * Currently just logs initialization in debug mode.
+     * Currently tracks session ID for event metadata.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     "session.created": async ({ session }) => {
+      currentSessionId = session.id;
       if (config.debug) {
         client.app.log({
           message: `[opencode-brain] Session ${session.id} started`
@@ -372,8 +877,8 @@ var OpencodeBrainPlugin = async ({
     /**
      * Tool executed - Called after each tool execution
      *
-     * Captures tool usage for memory. Stub for Phase 2 implementation.
-     * Currently just logs if debug mode is enabled.
+     * Captures tool usage for memory using EventBuffer for batched writes.
+     * Privacy filtering is applied before storage.
      */
     "tool.execute.after": async (input) => {
       if (config.debug) {
@@ -382,15 +887,45 @@ var OpencodeBrainPlugin = async ({
           input.args ? Object.keys(input.args) : "no args"
         );
       }
+      try {
+        captureToolExecution(
+          {
+            tool: input.tool,
+            sessionID: input.sessionID,
+            callID: input.callID,
+            args: input.args
+          },
+          eventBuffer
+        );
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Failed to capture tool execution:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
     },
     /**
      * File edited - Called when a file is modified
      *
-     * Captures file changes for memory. Stub for Phase 2.
+     * Captures file changes for memory using EventBuffer for batched writes.
      */
     "file.edited": async (input) => {
       if (config.debug) {
         console.log(`[opencode-brain] File edited: ${input.filePath}`);
+      }
+      try {
+        captureFileEdit(
+          {
+            filePath: input.filePath
+          },
+          eventBuffer,
+          currentSessionId
+        );
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Failed to capture file edit:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
     },
     /**
@@ -401,7 +936,15 @@ var OpencodeBrainPlugin = async ({
      */
     "session.deleted": async () => {
       if (config.debug) {
-        console.log("[opencode-brain] Session ended, closing storage");
+        console.log("[opencode-brain] Session ended, flushing buffer and closing storage");
+      }
+      try {
+        eventBuffer.stop();
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Error stopping event buffer:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
       try {
         storage.close();
@@ -415,10 +958,15 @@ var OpencodeBrainPlugin = async ({
     /**
      * Error handler - Called when plugin encounters an error
      *
-     * Never throw from here - log and continue gracefully.
+     * Captures error to memory for debugging, then logs and continues.
+     * Never throw from here - always graceful degradation.
      */
     onError: (error) => {
       console.error("[opencode-brain] Plugin error:", error.message);
+      try {
+        captureSessionError(error, eventBuffer, currentSessionId);
+      } catch {
+      }
     }
   };
 };
@@ -426,7 +974,18 @@ var OpencodeBrainPlugin = async ({
 // src/index.ts
 var index_default = OpencodeBrainPlugin;
 export {
+  EventBuffer,
   OpencodeBrainPlugin,
-  index_default as default
+  captureFileEdit,
+  captureSessionError,
+  captureToolExecution,
+  createBuffer,
+  index_default as default,
+  getExclusionReasons,
+  isSensitiveContent,
+  sanitizeBashCommand,
+  sanitizeContent,
+  sanitizeObject,
+  shouldCaptureFile
 };
 //# sourceMappingURL=index.js.map
