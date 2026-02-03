@@ -78,6 +78,7 @@
 **Requirements:** INJ-01..06
 **Dependencies:** Phase 1, Phase 2 ✓
 **Success Criteria:** Context loaded at session start, available for queries
+**Plans:** 6 plans in 2 waves — READY FOR EXECUTION
 
 | # | Requirement | Description |
 |---|-------------|-------------|
@@ -93,6 +94,14 @@
 - [ ] Opencode can answer "What did we decide..." questions
 - [ ] Context doesn't overwhelm token limit
 - [ ] Works across agent switches
+
+**Plans:**
+- [ ] 03-01-PLAN.md — Context selection algorithm (relevance scoring) — TDD
+- [ ] 03-02-PLAN.md — Context formatting (stylish ANSI/Unicode presentation)
+- [ ] 03-03-PLAN.md — Context injection logic (loading + SDK integration)
+- [ ] 03-04-PLAN.md — Session compacting handler (INJ-06)
+- [ ] 03-05-PLAN.md — Plugin wiring (event handler integration)
+- [ ] 03-06-PLAN.md — Agent type tracking (unified memory approach)
 
 ---
 
