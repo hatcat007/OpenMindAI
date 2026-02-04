@@ -119,10 +119,10 @@ export function createEventBuffer(config?: Partial<BufferConfig>): IEventBuffer 
 
       isFlushing = true;
 
-      try {
-        // Capture entries to flush
-        const entriesToFlush = [...entries];
+      // Capture entries to flush (declared outside try for catch block access)
+      const entriesToFlush = [...entries];
 
+      try {
         // Clear buffer before calling onFlush (in case onFlush throws)
         entries = [];
 
@@ -138,10 +138,9 @@ export function createEventBuffer(config?: Partial<BufferConfig>): IEventBuffer 
           error instanceof Error ? error.message : String(error)
         );
 
-        // Restore entries that weren't flushed (they were cleared before the error)
-        // This ensures no data loss, though it may cause duplicates
-        // In production, onFlush should be reliable (storage.write is synchronous)
-        entries = [...entries, ...entries];
+        // Restore entries that weren't flushed (they were cleared before onFlush)
+        // This ensures no data loss on flush failure, allowing retry on next flush
+        entries = entriesToFlush;
       } finally {
         isFlushing = false;
       }

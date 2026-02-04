@@ -38,11 +38,11 @@
     "bun": ">=1.0.0"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
+    "@opencode-ai/plugin": "^1.1.49"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "tsup": "^8.0.0",
-    "typescript": "^5.7.0"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }

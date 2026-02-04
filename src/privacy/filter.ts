@@ -10,27 +10,32 @@
 /**
  * Patterns for detecting sensitive content in strings.
  * These patterns match common secret formats like passwords, API keys, tokens, etc.
+ *
+ * NOTE: These patterns intentionally do NOT use the global (g) flag.
+ * The global flag causes regex state issues where lastIndex persists across calls,
+ * potentially causing subsequent .test() calls to miss matches at the start of strings.
+ * This is a security-critical design choice to ensure consistent detection.
  */
 export const SENSITIVE_PATTERNS: RegExp[] = [
   // Password patterns
-  /password\s*[:=]\s*\S+/gi,
-  /[a-zA-Z0-9_]*password[a-zA-Z0-9_]*\s*[=:]\s*["']?[^"'\s]+["']?/gi,
-  
+  /password\s*[:=]\s*\S+/i,
+  /[a-zA-Z0-9_]*password[a-zA-Z0-9_]*\s*[=:]\s*["']?[^"'\s]+["']?/i,
+
   // API key patterns
-  /api[_-]?key\s*[:=]\s*\S+/gi,
-  
+  /api[_-]?key\s*[:=]\s*\S+/i,
+
   // Token patterns
-  /token\s*[:=]\s*\S+/gi,
-  
+  /token\s*[:=]\s*\S+/i,
+
   // Secret patterns
-  /secret\s*[:=]\s*\S+/gi,
-  
+  /secret\s*[:=]\s*\S+/i,
+
   // Private key patterns
-  /private[_-]?key\s*[:=]\s*\S+/gi,
+  /private[_-]?key\s*[:=]\s*\S+/i,
   /-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----/,
-  
+
   // URL with embedded credentials
-  /:\/\/[^\s:@]+:[^\s:@]+@/g,
+  /:\/\/[^\s:@]+:[^\s:@]+@/,
 ];
 
 /**

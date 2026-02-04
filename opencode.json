@@ -1,4 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["./dist/index.js"]
+  "plugin": ["/Users/buddythacat/Documents/TOOLS/claude-brain/dist/index.js"]
 }

@@ -2,7 +2,7 @@
 
 // src/storage/sqlite-storage.ts
 import { Database } from "bun:sqlite";
-import { unlinkSync, existsSync } from "node:fs";
+import { unlinkSync, existsSync } from "fs";
 var BrainStorage = class {
   db;
   filePath;
@@ -298,8 +298,8 @@ function createStorage(options) {
 }
 
 // src/config.ts
-import { join } from "node:path";
-import { mkdirSync, readFileSync } from "node:fs";
+import { join } from "path";
+import { mkdirSync, readFileSync } from "fs";
 var DEFAULT_CONFIG = {
   storagePath: ".opencode/mind.mv2",
   autoInitialize: true,
@@ -394,8 +394,8 @@ function createEventBuffer(config) {
         return;
       }
       isFlushing = true;
+      const entriesToFlush = [...entries];
       try {
-        const entriesToFlush = [...entries];
         entries = [];
         fullConfig.onFlush(entriesToFlush);
         lastFlush = Date.now();
@@ -404,7 +404,7 @@ function createEventBuffer(config) {
           "[EventBuffer] Flush error:",
           error instanceof Error ? error.message : String(error)
         );
-        entries = [...entries, ...entries];
+        entries = entriesToFlush;
       } finally {
         isFlushing = false;
       }
@@ -470,22 +470,99 @@ function createBuffer(onFlush, options) {
 }
 var EventBuffer = createEventBuffer;
 
+// src/plugin.ts
+var OpencodeBrainPlugin = async ({
+  client,
+  directory,
+  worktree
+}) => {
+  console.log("[opencode-brain] Plugin starting...");
+  const config = loadConfig(directory);
+  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
+  const projectPath = worktree || directory;
+  const storagePath = getStoragePath(projectPath, config);
+  let storage;
+  try {
+    storage = createStorage({ filePath: storagePath });
+    console.log("[opencode-brain] Storage initialized at", storagePath);
+  } catch (error) {
+    console.error(
+      "[opencode-brain] Failed to initialize storage:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return {
+      config: async () => {
+      },
+      event: async () => {
+      },
+      "tool.execute.after": async () => {
+      }
+    };
+  }
+  const eventBuffer = createEventBuffer({
+    maxSize: 50,
+    flushIntervalMs: 5e3,
+    onFlush: (entries) => {
+      try {
+        for (const entry of entries) {
+          storage.write(entry.id, entry);
+        }
+        if (config.debug) {
+          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
+        }
+      } catch (error) {
+        console.error(
+          "[opencode-brain] Failed to flush entries:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+  });
+  eventBuffer.start();
+  console.log("[opencode-brain] Event buffer created");
+  if (config.debug) {
+    try {
+      const stats = storage.stats();
+      client.app.log({
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`
+        }
+      });
+    } catch {
+      client.app.log({
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage initialized at ${storagePath}`
+        }
+      });
+    }
+  }
+  console.log("[opencode-brain] Returning hooks...");
+  return {
+    config: async () => {
+    }
+  };
+};
+
 // src/privacy/filter.ts
 var SENSITIVE_PATTERNS = [
   // Password patterns
-  /password\s*[:=]\s*\S+/gi,
-  /[a-zA-Z0-9_]*password[a-zA-Z0-9_]*\s*[=:]\s*["']?[^"'\s]+["']?/gi,
+  /password\s*[:=]\s*\S+/i,
+  /[a-zA-Z0-9_]*password[a-zA-Z0-9_]*\s*[=:]\s*["']?[^"'\s]+["']?/i,
   // API key patterns
-  /api[_-]?key\s*[:=]\s*\S+/gi,
+  /api[_-]?key\s*[:=]\s*\S+/i,
   // Token patterns
-  /token\s*[:=]\s*\S+/gi,
+  /token\s*[:=]\s*\S+/i,
   // Secret patterns
-  /secret\s*[:=]\s*\S+/gi,
+  /secret\s*[:=]\s*\S+/i,
   // Private key patterns
-  /private[_-]?key\s*[:=]\s*\S+/gi,
+  /private[_-]?key\s*[:=]\s*\S+/i,
   /-----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----/,
   // URL with embedded credentials
-  /:\/\/[^\s:@]+:[^\s:@]+@/g
+  /:\/\/[^\s:@]+:[^\s:@]+@/
 ];
 var EXCLUDED_PATH_PATTERNS = [
   // .env files and variations (.env.local, .env.development.local, etc.)
@@ -792,189 +869,6 @@ function captureFileEdit(input, buffer, sessionId) {
     return false;
   }
 }
-
-// src/plugin.ts
-var OpencodeBrainPlugin = async ({
-  client,
-  directory,
-  worktree
-}) => {
-  console.log("[opencode-brain] Plugin starting...");
-  const config = loadConfig(directory);
-  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
-  const projectPath = worktree || directory;
-  const storagePath = getStoragePath(projectPath, config);
-  let currentSessionId = "unknown";
-  let storage;
-  try {
-    storage = createStorage({ filePath: storagePath });
-    console.log("[opencode-brain] Storage initialized at", storagePath);
-  } catch (error) {
-    console.error(
-      "[opencode-brain] Failed to initialize storage:",
-      error instanceof Error ? error.message : String(error)
-    );
-    return {
-      "session.created": async () => {
-      },
-      "tool.execute.after": async () => {
-      },
-      "file.edited": async () => {
-      },
-      "session.deleted": async () => {
-      }
-    };
-  }
-  const eventBuffer = createEventBuffer({
-    maxSize: 50,
-    flushIntervalMs: 5e3,
-    onFlush: (entries) => {
-      try {
-        for (const entry of entries) {
-          storage.write(entry.id, entry);
-        }
-        if (config.debug) {
-          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
-        }
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Failed to flush entries:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    }
-  });
-  eventBuffer.start();
-  console.log("[opencode-brain] Event buffer created");
-  if (config.debug) {
-    try {
-      const stats = storage.stats();
-      client.app.log({
-        body: {
-          service: "opencode-brain",
-          level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`
-        }
-      });
-    } catch {
-      client.app.log({
-        body: {
-          service: "opencode-brain",
-          level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath}`
-        }
-      });
-    }
-  }
-  console.log("[opencode-brain] Returning hooks...");
-  return {
-    /**
-     * Session created - Called when a new Opencode session starts
-     *
-     * This is where context injection would happen in Phase 3.
-     * Currently tracks session ID for event metadata.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    "session.created": async ({ session }) => {
-      currentSessionId = session.id;
-      if (config.debug) {
-        client.app.log({
-          body: {
-            service: "opencode-brain",
-            level: "info",
-            message: `[opencode-brain] Session ${session.id} started`
-          }
-        });
-      }
-    },
-    /**
-     * Tool executed - Called after each tool execution
-     *
-     * Captures tool usage for memory using EventBuffer for batched writes.
-     * Privacy filtering is applied before storage.
-     */
-    "tool.execute.after": async (input) => {
-      if (config.debug) {
-        console.log(
-          `[opencode-brain] Tool executed: ${input.tool}`,
-          input.args ? Object.keys(input.args) : "no args"
-        );
-      }
-      try {
-        captureToolExecution(
-          {
-            tool: input.tool,
-            sessionID: input.sessionID,
-            callID: input.callID,
-            args: input.args
-          },
-          eventBuffer
-        );
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Failed to capture tool execution:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    },
-    /**
-     * File edited - Called when a file is modified
-     *
-     * Captures file changes for memory using EventBuffer for batched writes.
-     */
-    "file.edited": async (input) => {
-      if (config.debug) {
-        console.log(`[opencode-brain] File edited: ${input.filePath}`);
-      }
-      try {
-        captureFileEdit(
-          {
-            filePath: input.filePath
-          },
-          eventBuffer,
-          currentSessionId
-        );
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Failed to capture file edit:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    },
-    /**
-     * Session deleted - Called when session ends
-     *
-     * Use session.deleted (not session.idle) for cleanup.
-     * This is the reliable signal for session termination.
-     */
-    "session.deleted": async () => {
-      if (config.debug) {
-        console.log("[opencode-brain] Session ended, flushing buffer and closing storage");
-      }
-      try {
-        eventBuffer.stop();
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Error stopping event buffer:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-      try {
-        storage.close();
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Error closing storage:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    },
-    // DEBUG: Confirm all hooks are set up - this marker executes when the return object is constructed
-    _marker: (() => {
-      console.log("[opencode-brain] All hooks configured and ready");
-      return void 0;
-    })()
-  };
-};
 
 // src/events/error-capture.ts
 function captureSessionError(error, buffer, sessionId) {

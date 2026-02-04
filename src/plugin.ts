@@ -32,8 +32,8 @@ import { createStorage } from "./storage/sqlite-storage.js";
 import { loadConfig, getStoragePath } from "./config.js";
 import { createEventBuffer } from "./events/buffer.js";
 import type { MemoryEntry } from "./storage/storage-interface.js";
-import { captureToolExecution } from "./events/tool-capture.js";
-import { captureFileEdit } from "./events/file-capture.js";
+// import { captureToolExecution } from "./events/tool-capture.js";
+// import { captureFileEdit } from "./events/file-capture.js";
 
 /**
  * Opencode Brain Plugin - Makes Opencode remember everything
@@ -70,7 +70,7 @@ export const OpencodeBrainPlugin: Plugin = async ({
   const storagePath = getStoragePath(projectPath, config);
 
   // Track current session ID for event metadata
-  let currentSessionId: string = "unknown";
+  // let currentSessionId: string = "unknown";
 
   // Initialize storage SYNCHRONOUSLY (bun:sqlite design)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,12 +84,10 @@ export const OpencodeBrainPlugin: Plugin = async ({
       error instanceof Error ? error.message : String(error)
     );
     // Return minimal hooks so Opencode doesn't get undefined
-    // Note: config hook is optional and not used by this plugin
     return {
-      "session.created": async () => {},
+      config: async () => {},
+      event: async () => {},
       "tool.execute.after": async () => {},
-      "file.edited": async () => {},
-      "session.deleted": async () => {},
     };
   }
 
@@ -143,142 +141,10 @@ export const OpencodeBrainPlugin: Plugin = async ({
   }
 
   console.log("[opencode-brain] Returning hooks...");
-  
-  // Return event handlers
+
+  // Return minimal hooks to test if opencode loads without error
   return {
-    /**
-     * Session created - Called when a new Opencode session starts
-     *
-     * This is where context injection would happen in Phase 3.
-     * Currently tracks session ID for event metadata.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    "session.created": async ({ session }: { session: { id: string } }) => {
-      // Track session ID for all event capture
-      currentSessionId = session.id;
-
-      if (config.debug) {
-        client.app.log({
-          body: {
-            service: "opencode-brain",
-            level: "info",
-            message: `[opencode-brain] Session ${session.id} started`,
-          },
-        });
-      }
-
-      // Stub for Phase 3: Context injection
-      // TODO: Load relevant memories and inject into session context
-    },
-
-    /**
-     * Tool executed - Called after each tool execution
-     *
-     * Captures tool usage for memory using EventBuffer for batched writes.
-     * Privacy filtering is applied before storage.
-     */
-    "tool.execute.after": async (input: {
-      tool: string;
-      sessionID: string;
-      callID: string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args?: Record<string, any>;
-    }) => {
-      if (config.debug) {
-        console.log(
-          `[opencode-brain] Tool executed: ${input.tool}`,
-          input.args ? Object.keys(input.args) : "no args"
-        );
-      }
-
-      try {
-        // Capture tool execution with privacy filtering and buffering
-        captureToolExecution(
-          {
-            tool: input.tool,
-            sessionID: input.sessionID,
-            callID: input.callID,
-            args: input.args,
-          },
-          eventBuffer
-        );
-      } catch (error) {
-        // Never throw - graceful degradation
-        console.error(
-          "[opencode-brain] Failed to capture tool execution:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    },
-
-    /**
-     * File edited - Called when a file is modified
-     *
-     * Captures file changes for memory using EventBuffer for batched writes.
-     */
-    "file.edited": async (input: { filePath: string }) => {
-      if (config.debug) {
-        console.log(`[opencode-brain] File edited: ${input.filePath}`);
-      }
-
-      try {
-        // Capture file edit with privacy filtering and buffering
-        captureFileEdit(
-          {
-            filePath: input.filePath,
-          },
-          eventBuffer,
-          currentSessionId
-        );
-      } catch (error) {
-        // Never throw - graceful degradation
-        console.error(
-          "[opencode-brain] Failed to capture file edit:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    },
-
-    /**
-     * Session deleted - Called when session ends
-     *
-     * Use session.deleted (not session.idle) for cleanup.
-     * This is the reliable signal for session termination.
-     */
-    "session.deleted": async () => {
-      if (config.debug) {
-        console.log("[opencode-brain] Session ended, flushing buffer and closing storage");
-      }
-
-      // Stop buffer and flush remaining entries
-      try {
-        eventBuffer.stop();
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Error stopping event buffer:",
-          error instanceof Error ? error.message : String(error)
-        );
-        // Silent fail - don't crash Opencode during shutdown
-      }
-
-      // Close storage connection (SYNCHRONOUS)
-      try {
-        storage.close();
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Error closing storage:",
-          error instanceof Error ? error.message : String(error)
-        );
-        // Silent fail - don't crash Opencode during shutdown
-      }
-    },
-
-    // DEBUG: Confirm all hooks are set up - this marker executes when the return object is constructed
-    _marker: (() => {
-      console.log("[opencode-brain] All hooks configured and ready");
-      return undefined;
-    })(),
-
+    config: async () => {},
   };
 };
 
