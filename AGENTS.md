@@ -1,4 +1,4 @@
-# AGENTS.md - Agentic Coding Guide for claude-brain
+# AGENTS.md - Agentic Coding Guide for opencode-brain
 
 ## Build Commands
 
