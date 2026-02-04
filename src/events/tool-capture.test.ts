@@ -14,7 +14,7 @@ import {
   determineObservationType,
   extractFilesFromArgs,
   formatToolContent,
-  type ToolExecuteInput,
+  type ToolExecuteAfterInput,
 } from "./tool-capture.js";
 import { createEventBuffer } from "./buffer.js";
 import type { IEventBuffer } from "./buffer.js";
@@ -208,33 +208,43 @@ describe("captureToolExecution", () => {
     });
   });
 
+  // Helper to capture and add to buffer (simulating plugin behavior)
+  const captureAndAdd = (input: ToolExecuteAfterInput, sessionId: string, buffer: IEventBuffer) => {
+    const entry = captureToolExecution(input, sessionId);
+    if (entry) {
+      buffer.add(entry);
+    }
+  };
+
   it("adds entry to buffer for read tool", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-456",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
     expect(capturedEntries[0]!.type).toBe("discovery");
     expect(capturedEntries[0]!.content).toContain("Read file");
-    expect(capturedEntries[0]!.metadata.sessionId).toBe("session-123");
+    expect(capturedEntries[0]!.metadata.sessionId).toBe("current-session");
     expect(capturedEntries[0]!.metadata.tool).toBe("read");
   });
 
   it("sanitizes bash commands", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-789",
-      args: { command: "curl -u user:password https://api.example.com" },
+      output: "",
+      metadata: { args: { command: "curl -u user:password https://api.example.com" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -242,14 +252,15 @@ describe("captureToolExecution", () => {
   });
 
   it("preserves safe bash commands", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-abc",
-      args: { command: "ls -la" },
+      output: "",
+      metadata: { args: { command: "ls -la" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -257,56 +268,60 @@ describe("captureToolExecution", () => {
   });
 
   it("sets correct observation type for write", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "write",
       sessionID: "session-123",
       callID: "call-def",
-      args: { filePath: "/output.txt" },
+      output: "",
+      metadata: { args: { filePath: "/output.txt" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.type).toBe("solution");
   });
 
   it("sets correct observation type for edit", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "edit",
       sessionID: "session-123",
       callID: "call-ghi",
-      args: { filePath: "/src/code.ts" },
+      output: "",
+      metadata: { args: { filePath: "/src/code.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.type).toBe("refactor");
   });
 
   it("includes session ID in metadata", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "my-session-abc",
       callID: "call-xyz",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "my-session-abc", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.metadata.sessionId).toBe("my-session-abc");
   });
 
   it("includes tool name in metadata", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "search",
       sessionID: "session-123",
       callID: "call-123",
-      args: { pattern: "TODO" },
+      output: "",
+      metadata: { args: { pattern: "TODO" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.metadata.tool).toBe("search");
@@ -314,27 +329,29 @@ describe("captureToolExecution", () => {
   });
 
   it("includes files in metadata", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "write",
       sessionID: "session-123",
       callID: "call-files",
-      args: { filePath: "/src/app.ts" },
+      output: "",
+      metadata: { args: { filePath: "/src/app.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.metadata.files).toEqual(["/src/app.ts"]);
   });
 
   it("handles undefined args gracefully", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-noargs",
+      output: "",
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -350,26 +367,33 @@ describe("captureToolExecution", () => {
       },
     } as unknown as IEventBuffer;
 
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-error",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    // Should not throw
-    expect(() => captureToolExecution(input, badBuffer)).not.toThrow();
+    // Should not throw - captureToolExecution returns entry, buffer.add throws
+    const entry = captureToolExecution(input, "current-session");
+    expect(entry).not.toBeNull();
+    // The buffer add will throw, but that's outside captureToolExecution
+    expect(() => {
+      if (entry) badBuffer.add(entry);
+    }).toThrow();
   });
 
   it("redacts passwords in content", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-pass",
-      args: { command: "mysql -u root -p secretpassword123" },
+      output: "",
+      metadata: { args: { command: "mysql -u root -p secretpassword123" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -378,16 +402,17 @@ describe("captureToolExecution", () => {
   });
 
   it("redacts API keys in bash content", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-api",
-      args: {
-        command: "export API_KEY=sk-abc123xyz789 && run.sh",
+      output: "",
+      metadata: {
+        args: { command: "export API_KEY=sk-abc123xyz789 && run.sh" },
       },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     const entryContent = capturedEntries[0]!.content;
@@ -396,14 +421,15 @@ describe("captureToolExecution", () => {
   });
 
   it("skips sensitive bash commands entirely", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-skip",
-      args: { command: "ssh user@host" },
+      output: "",
+      metadata: { args: { command: "ssh user@host" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     // Safe commands should be preserved
@@ -411,47 +437,52 @@ describe("captureToolExecution", () => {
   });
 
   it("uses callID as entry ID", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "custom-id-456",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.id).toBe("custom-id-456");
   });
 
   it("handles null sessionID gracefully", () => {
-    const input = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: null as unknown as string,
       callID: "call-null",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
-    expect(capturedEntries[0]!.metadata.sessionId).toBeNull();
+    expect(capturedEntries[0]!.metadata.sessionId).toBe("current-session");
   });
 
   it("handles very long content gracefully", () => {
     const longContent = "a".repeat(10000);
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "write",
       sessionID: "session-123",
       callID: "call-long",
-      args: {
-        filePath: "/bigfile.txt",
-        content: longContent,
+      output: "",
+      metadata: {
+        args: {
+          filePath: "/bigfile.txt",
+          content: longContent,
+        },
       },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     // Entry should exist but not contain the full content
@@ -460,14 +491,15 @@ describe("captureToolExecution", () => {
   });
 
   it("captures glob tool with pattern", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "glob",
       sessionID: "session-123",
       callID: "call-glob",
-      args: { pattern: "**/*.test.ts" },
+      output: "",
+      metadata: { args: { pattern: "**/*.test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.type).toBe("discovery");
@@ -475,14 +507,15 @@ describe("captureToolExecution", () => {
   });
 
   it("captures ask tool with question", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "ask",
       sessionID: "session-123",
       callID: "call-ask",
-      args: { question: "How do I use TypeScript?" },
+      output: "",
+      metadata: { args: { question: "How do I use TypeScript?" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.type).toBe("discovery");
@@ -491,14 +524,15 @@ describe("captureToolExecution", () => {
   });
 
   it("handles empty callID gracefully", () => {
-    const input = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "",
-      args: { filePath: "/test.ts" },
+      output: "",
+      metadata: { args: { filePath: "/test.ts" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -524,71 +558,84 @@ describe("Privacy Integration", () => {
     });
   });
 
+  // Helper to capture and add to buffer
+  const captureAndAdd = (input: ToolExecuteAfterInput, sessionId: string, buffer: IEventBuffer) => {
+    const entry = captureToolExecution(input, sessionId);
+    if (entry) {
+      buffer.add(entry);
+    }
+  };
+
   it("redacts curl commands with credentials", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-curl",
-      args: { command: "curl -u admin:secret123 https://api.example.com" },
+      output: "",
+      metadata: { args: { command: "curl -u admin:secret123 https://api.example.com" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toBe("[REDACTED BASH COMMAND]");
   });
 
   it("preserves curl without credentials", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-curl-safe",
-      args: { command: "curl https://api.example.com/data" },
+      output: "",
+      metadata: { args: { command: "curl https://api.example.com/data" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toBe("Executed: curl https://api.example.com/data");
   });
 
   it("redacts mysql commands with passwords", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-mysql",
-      args: { command: "mysql -u root -p mypassword database" },
+      output: "",
+      metadata: { args: { command: "mysql -u root -p mypassword database" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toContain("REDACTED");
   });
 
   it("redacts URLs with embedded credentials", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-url",
-      args: { command: "git clone https://user:pass@github.com/repo.git" },
+      output: "",
+      metadata: { args: { command: "git clone https://user:pass@github.com/repo.git" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toContain("REDACTED");
   });
 
   it("redacts environment variable exports with secrets", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-env",
-      args: { command: "export API_KEY=sk-123456789" },
+      output: "",
+      metadata: { args: { command: "export API_KEY=sk-123456789" } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toContain("REDACTED");
@@ -610,14 +657,23 @@ describe("Edge Cases", () => {
     });
   });
 
+  // Helper to capture and add to buffer
+  const captureAndAdd = (input: ToolExecuteAfterInput, sessionId: string, buffer: IEventBuffer) => {
+    const entry = captureToolExecution(input, sessionId);
+    if (entry) {
+      buffer.add(entry);
+    }
+  };
+
   it("handles tool with no args property", () => {
-    const input = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-noargs",
-    } as ToolExecuteInput;
+      output: "",
+    };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
@@ -625,44 +681,49 @@ describe("Edge Cases", () => {
   });
 
   it("handles tool with null args", () => {
-    const input = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-null",
-      args: null,
-    } as unknown as ToolExecuteInput;
+      output: "",
+      metadata: { args: null as unknown as Record<string, unknown> },
+    };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);
   });
 
   it("handles files array with mixed types", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "read",
       sessionID: "session-123",
       callID: "call-mixed",
-      args: {
-        files: ["/valid.ts", 123, null, "/also-valid.ts", undefined],
+      output: "",
+      metadata: {
+        args: {
+          files: ["/valid.ts", 123, null, "/also-valid.ts", undefined],
+        },
       },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.metadata.files).toEqual(["/valid.ts", "/also-valid.ts"]);
   });
 
   it("handles tool names with special characters", () => {
-    const input = {
+    const input: ToolExecuteAfterInput = {
       tool: "custom-tool_v2",
       sessionID: "session-123",
       callID: "call-special",
-      args: {},
-    } as ToolExecuteInput;
+      output: "",
+      metadata: { args: {} },
+    };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.type).toBe("pattern");
@@ -670,31 +731,35 @@ describe("Edge Cases", () => {
   });
 
   it("handles whitespace in bash commands", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "bash",
       sessionID: "session-123",
       callID: "call-ws",
-      args: { command: "   ls -la   " },
+      output: "",
+      metadata: { args: { command: "   ls -la   " } },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries[0]!.content).toBe("Executed: ls -la");
   });
 
   it("handles emoji and unicode in content", () => {
-    const input: ToolExecuteInput = {
+    const input: ToolExecuteAfterInput = {
       tool: "write",
       sessionID: "session-123",
       callID: "call-emoji",
-      args: {
-        filePath: "/readme.md",
-        content: "Hello 🎉 World! こんにちは",
+      output: "",
+      metadata: {
+        args: {
+          filePath: "/readme.md",
+          content: "Hello 🎉 World! こんにちは",
+        },
       },
     };
 
-    captureToolExecution(input, mockBuffer);
+    captureAndAdd(input, "current-session", mockBuffer);
     mockBuffer.flush();
 
     expect(capturedEntries.length).toBe(1);

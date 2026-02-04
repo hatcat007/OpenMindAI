@@ -299,7 +299,7 @@ function createStorage(options) {
 
 // src/config.ts
 import { join } from "path";
-import { mkdirSync, readFileSync } from "fs";
+import { mkdirSync, readFileSync, accessSync, constants, statSync } from "fs";
 var DEFAULT_CONFIG = {
   storagePath: ".opencode/mind.mv2",
   autoInitialize: true,
@@ -345,9 +345,100 @@ function ensureDirectory(filePath) {
   try {
     const parentDir = filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/")) : ".";
     if (parentDir && parentDir !== ".") {
+      console.log(`[opencode-brain] Creating directory: ${parentDir}`);
       mkdirSync(parentDir, { recursive: true });
+      console.log(`[opencode-brain] Directory ready: ${parentDir}`);
     }
   } catch (error) {
+    if (error && typeof error === "object" && "code" in error) {
+      const code = error.code;
+      if (code === "EEXIST") {
+        console.log(`[opencode-brain] Directory already exists: ${filePath.slice(0, filePath.lastIndexOf("/"))}`);
+        return;
+      }
+    }
+    console.error(`[opencode-brain] CRITICAL: Failed to create directory for ${filePath}`);
+    console.error(`[opencode-brain] Error details:`, error);
+    throw new Error(
+      `Cannot create storage directory: ${error instanceof Error ? error.message : String(error)}. Path: ${filePath}. Check permissions and disk space.`
+    );
+  }
+}
+function validateStoragePath(filePath) {
+  const messages = [];
+  try {
+    if (!filePath || filePath.trim() === "") {
+      return {
+        valid: false,
+        messages: ["Storage path is empty"],
+        error: "Empty storage path provided"
+      };
+    }
+    messages.push(`\u2713 Storage path specified: ${filePath}`);
+    if (filePath.includes(" ")) {
+      messages.push(`\u26A0 Warning: Path contains spaces, which may cause issues: ${filePath}`);
+    }
+    const parentDir = filePath.slice(0, filePath.lastIndexOf("/"));
+    if (!parentDir || parentDir === "") {
+      return {
+        valid: false,
+        messages: [...messages, "Cannot determine parent directory"],
+        error: "Invalid file path format"
+      };
+    }
+    messages.push(`\u2713 Parent directory: ${parentDir}`);
+    try {
+      mkdirSync(parentDir, { recursive: true });
+      messages.push(`\u2713 Parent directory exists/created: ${parentDir}`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return {
+        valid: false,
+        messages: [...messages, `\u2717 Cannot create parent directory: ${errorMsg}`],
+        error: `Failed to create directory: ${errorMsg}`
+      };
+    }
+    try {
+      accessSync(parentDir, constants.W_OK | constants.R_OK);
+      messages.push(`\u2713 Parent directory is readable and writable`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return {
+        valid: false,
+        messages: [...messages, `\u2717 Parent directory not writable: ${errorMsg}`],
+        error: `Permission denied: ${errorMsg}`
+      };
+    }
+    try {
+      const stats = statSync(filePath);
+      if (stats.isDirectory()) {
+        return {
+          valid: false,
+          messages: [...messages, `\u2717 Storage path is a directory, not a file: ${filePath}`],
+          error: "Storage path points to a directory"
+        };
+      }
+      messages.push(`\u2713 Storage file exists (${(stats.size / 1024).toFixed(2)} KB)`);
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error) {
+        const code = error.code;
+        if (code === "ENOENT") {
+          messages.push(`\u2713 Storage file will be created (doesn't exist yet)`);
+        } else {
+          messages.push(`\u26A0 Cannot stat file: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+    return {
+      valid: true,
+      messages
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      messages: [...messages, `\u2717 Unexpected error: ${error instanceof Error ? error.message : String(error)}`],
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
@@ -469,83 +560,6 @@ function createBuffer(onFlush, options) {
   });
 }
 var EventBuffer = createEventBuffer;
-
-// src/plugin.ts
-var OpencodeBrainPlugin = async ({
-  client,
-  directory,
-  worktree
-}) => {
-  console.log("[opencode-brain] Plugin starting...");
-  const config = loadConfig(directory);
-  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
-  const projectPath = worktree || directory;
-  const storagePath = getStoragePath(projectPath, config);
-  let storage;
-  try {
-    storage = createStorage({ filePath: storagePath });
-    console.log("[opencode-brain] Storage initialized at", storagePath);
-  } catch (error) {
-    console.error(
-      "[opencode-brain] Failed to initialize storage:",
-      error instanceof Error ? error.message : String(error)
-    );
-    return {
-      config: async () => {
-      },
-      event: async () => {
-      },
-      "tool.execute.after": async () => {
-      }
-    };
-  }
-  const eventBuffer = createEventBuffer({
-    maxSize: 50,
-    flushIntervalMs: 5e3,
-    onFlush: (entries) => {
-      try {
-        for (const entry of entries) {
-          storage.write(entry.id, entry);
-        }
-        if (config.debug) {
-          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
-        }
-      } catch (error) {
-        console.error(
-          "[opencode-brain] Failed to flush entries:",
-          error instanceof Error ? error.message : String(error)
-        );
-      }
-    }
-  });
-  eventBuffer.start();
-  console.log("[opencode-brain] Event buffer created");
-  if (config.debug) {
-    try {
-      const stats = storage.stats();
-      client.app.log({
-        body: {
-          service: "opencode-brain",
-          level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`
-        }
-      });
-    } catch {
-      client.app.log({
-        body: {
-          service: "opencode-brain",
-          level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath}`
-        }
-      });
-    }
-  }
-  console.log("[opencode-brain] Returning hooks...");
-  return {
-    config: async () => {
-    }
-  };
-};
 
 // src/privacy/filter.ts
 var SENSITIVE_PATTERNS = [
@@ -803,13 +817,14 @@ function formatToolContent(tool, args) {
       return `Used ${tool} tool`;
   }
 }
-function captureToolExecution(input, buffer) {
+function captureToolExecution(input, sessionId) {
   try {
     const observationType = determineObservationType(input.tool);
-    const formattedContent = formatToolContent(input.tool, input.args);
+    const args = input.metadata?.args || {};
+    const formattedContent = formatToolContent(input.tool, args);
     let sanitizedContent;
-    if (input.tool === "bash" && input.args?.command) {
-      const sanitizedCommand = sanitizeBashCommand(String(input.args.command));
+    if (input.tool === "bash" && args.command) {
+      const sanitizedCommand = sanitizeBashCommand(String(args.command));
       if (sanitizedCommand === null) {
         sanitizedContent = "[REDACTED BASH COMMAND]";
       } else if (sanitizedCommand === "[REDACTED BASH COMMAND]") {
@@ -820,60 +835,64 @@ function captureToolExecution(input, buffer) {
     } else {
       sanitizedContent = sanitizeContent(formattedContent);
     }
-    const files = extractFilesFromArgs(input.args || {});
+    const files = extractFilesFromArgs(args);
     const entry = {
       id: input.callID || crypto.randomUUID(),
       type: observationType,
       content: sanitizedContent,
       createdAt: Date.now(),
       metadata: {
-        sessionId: input.sessionID,
+        sessionId,
         tool: input.tool,
         summary: `${input.tool} executed`,
         files: files.length > 0 ? files : void 0
       }
     };
-    buffer.add(entry);
+    return entry;
   } catch (error) {
     console.error(
       "[ToolCapture] Failed to capture tool execution:",
       error instanceof Error ? error.message : String(error)
     );
+    return null;
   }
 }
 
 // src/events/file-capture.ts
-function captureFileEdit(input, buffer, sessionId) {
+function captureFileEdit(event, sessionId) {
   try {
-    if (!shouldCaptureFile(input.filePath)) {
-      return false;
+    if (!shouldCaptureFile(event.filePath)) {
+      return null;
     }
     const entry = {
       id: crypto.randomUUID(),
       type: "refactor",
-      content: `File modified: ${input.filePath}`,
+      content: `File modified: ${event.filePath}`,
       createdAt: Date.now(),
       metadata: {
         sessionId,
-        summary: `Edited ${input.filePath.split("/").pop() || input.filePath}`,
-        files: [input.filePath]
+        summary: `Edited ${event.filePath.split("/").pop() || event.filePath}`,
+        files: [event.filePath]
       }
     };
-    buffer.add(entry);
-    return true;
+    return entry;
   } catch (error) {
     console.error(
       "[FileCapture] Failed to capture file edit:",
       error instanceof Error ? error.message : String(error)
     );
-    return false;
+    return null;
   }
 }
 
 // src/events/error-capture.ts
-function captureSessionError(error, buffer, sessionId) {
+function captureSessionError(event, sessionId) {
   try {
-    if (isSensitiveContent(error.message)) {
+    if (!event || !event.error) {
+      return null;
+    }
+    const error = event.error;
+    if (error.message && isSensitiveContent(error.message)) {
       const entry2 = {
         id: crypto.randomUUID(),
         type: "problem",
@@ -886,8 +905,7 @@ function captureSessionError(error, buffer, sessionId) {
           redacted: true
         }
       };
-      buffer.add(entry2);
-      return;
+      return entry2;
     }
     const entry = {
       id: crypto.randomUUID(),
@@ -900,10 +918,228 @@ function captureSessionError(error, buffer, sessionId) {
         error: error.name
       }
     };
-    buffer.add(entry);
-  } catch {
+    return entry;
+  } catch (error) {
+    console.error(
+      "[ErrorCapture] Failed to capture session error:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
   }
 }
+
+// src/plugin.ts
+var OpencodeBrainPlugin = async ({
+  client,
+  directory,
+  worktree
+}) => {
+  console.log("[opencode-brain] Plugin starting...");
+  const config = loadConfig(directory);
+  console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
+  const projectPath = worktree && worktree !== "/" ? worktree : directory;
+  const storagePath = getStoragePath(projectPath, config);
+  console.log("[opencode-brain] Storage path:", storagePath);
+  console.log("[opencode-brain] Running pre-flight storage validation...");
+  const validation = validateStoragePath(storagePath);
+  for (const message of validation.messages) {
+    console.log(`[opencode-brain] ${message}`);
+  }
+  if (!validation.valid) {
+    console.error("[opencode-brain] \u274C STORAGE VALIDATION FAILED!");
+    console.error(`[opencode-brain] Error: ${validation.error}`);
+    console.error("[opencode-brain] Cannot initialize storage - plugin will run in read-only mode");
+    return {
+      config: async () => {
+      },
+      "session.created": async () => {
+      },
+      "session.deleted": async () => {
+      },
+      "file.edited": async () => {
+      },
+      "session.error": async () => {
+      },
+      "tool.execute.after": async () => {
+      }
+    };
+  }
+  console.log("[opencode-brain] \u2713 Pre-flight validation passed");
+  let currentSessionId = "unknown";
+  let storage;
+  try {
+    console.log("[opencode-brain] Creating storage instance...");
+    storage = createStorage({ filePath: storagePath });
+    console.log("[opencode-brain] \u2713 Storage initialized successfully at", storagePath);
+    try {
+      const stats = storage.stats();
+      console.log(`[opencode-brain] \u2713 Storage ready: ${stats.count} memories, ${(stats.sizeBytes / 1024).toFixed(2)} KB`);
+    } catch (statsError) {
+      console.warn("[opencode-brain] \u26A0 Storage created but stats check failed:", statsError);
+    }
+  } catch (error) {
+    console.error("[opencode-brain] \u274C CRITICAL: Failed to initialize storage!");
+    console.error("[opencode-brain] Error type:", error instanceof Error ? error.constructor.name : typeof error);
+    console.error("[opencode-brain] Error message:", error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error("[opencode-brain] Stack trace:", error.stack);
+    }
+    console.error("[opencode-brain] Storage path was:", storagePath);
+    return {
+      config: async () => {
+      },
+      "session.created": async () => {
+      },
+      "session.deleted": async () => {
+      },
+      "file.edited": async () => {
+      },
+      "session.error": async () => {
+      },
+      "tool.execute.after": async () => {
+      }
+    };
+  }
+  const eventBuffer = createEventBuffer({
+    maxSize: 50,
+    flushIntervalMs: 5e3,
+    onFlush: (entries) => {
+      try {
+        for (const entry of entries) {
+          storage.write(entry.id, entry);
+        }
+        if (config.debug) {
+          console.log(`[opencode-brain] Flushed ${entries.length} entries`);
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Failed to flush:", error);
+      }
+    }
+  });
+  eventBuffer.start();
+  console.log("[opencode-brain] Event buffer created");
+  if (config.debug) {
+    try {
+      const stats = storage.stats();
+      client.app.log({
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage at ${storagePath} (${stats.count} memories)`
+        }
+      });
+    } catch {
+      client.app.log({
+        body: {
+          service: "opencode-brain",
+          level: "info",
+          message: `[opencode-brain] Storage at ${storagePath}`
+        }
+      });
+    }
+  }
+  console.log("[opencode-brain] Returning hooks...");
+  const hooks = {
+    // Config hook (required by SDK v1.x)
+    config: async () => {
+    },
+    // Session created handler
+    "session.created": async ({ session }) => {
+      try {
+        currentSessionId = session.id;
+        if (config.debug) {
+          const stats = storage.stats();
+          client.app.log({
+            body: {
+              service: "opencode-brain",
+              level: "info",
+              message: `Session ${session.id} started (${stats.count} memories)`
+            }
+          });
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Session created handler error:", error);
+      }
+    },
+    // Session deleted handler
+    "session.deleted": async ({ session }) => {
+      try {
+        if (config.debug) {
+          console.log(`[opencode-brain] Session ${session.id} ending`);
+        }
+        eventBuffer.stop({ flushRemaining: true });
+        storage?.close();
+        if (config.debug) {
+          console.log("[opencode-brain] Session ended, storage closed");
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Session deleted handler error:", error);
+      }
+    },
+    // File edited handler
+    "file.edited": async ({ file }) => {
+      try {
+        const entry = captureFileEdit({ filePath: file.path, sessionID: file.sessionID || currentSessionId }, currentSessionId);
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log(`[opencode-brain] Captured file edit: ${file.path}`);
+          }
+        }
+      } catch (error) {
+        console.error("[opencode-brain] File edited handler error:", error);
+      }
+    },
+    // Session error handler
+    "session.error": async ({ error, sessionID }) => {
+      try {
+        if (!error) {
+          console.warn("[opencode-brain] Received session.error hook with no error object");
+          return;
+        }
+        const entry = captureSessionError(
+          {
+            error: new Error(error.message || "Unknown error"),
+            sessionID: sessionID || currentSessionId
+          },
+          currentSessionId
+        );
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log("[opencode-brain] Captured session error");
+          }
+        }
+      } catch (err) {
+        console.error("[opencode-brain] Session error handler error:", err);
+      }
+    },
+    // Tool execution handler
+    "tool.execute.after": async (input, output) => {
+      try {
+        const entry = captureToolExecution(
+          {
+            tool: input.tool,
+            sessionID: input.sessionID,
+            callID: input.callID,
+            output: output.output,
+            metadata: output.metadata
+          },
+          currentSessionId
+        );
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log(`[opencode-brain] Captured ${entry.type}: ${entry.content.slice(0, 50)}...`);
+          }
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Tool capture error:", error);
+      }
+    }
+  };
+  return hooks;
+};
 
 // src/index.ts
 var index_default = OpencodeBrainPlugin;

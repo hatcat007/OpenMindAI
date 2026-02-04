@@ -8,23 +8,8 @@
  */
 
 import type { MemoryEntry } from "../storage/storage-interface.js";
-import type { IEventBuffer } from "./buffer.js";
 import { sanitizeContent, sanitizeBashCommand } from "../privacy/filter.js";
 import type { ObservationType } from "../types.js";
-
-/**
- * Input data from tool.execute.after event
- */
-export interface ToolExecuteInput {
-  /** Tool name (e.g., "read", "write", "bash") */
-  tool: string;
-  /** Session identifier */
-  sessionID: string;
-  /** Unique call identifier */
-  callID: string;
-  /** Tool arguments */
-  args?: Record<string, unknown>;
-}
 
 /**
  * Maps tool names to observation types.
@@ -177,7 +162,23 @@ export function formatToolContent(
 }
 
 /**
- * Captures a tool execution event and adds it to the event buffer.
+ * Input data from tool.execute.after event (OpenCode SDK format)
+ */
+export interface ToolExecuteAfterInput {
+  /** Tool name (e.g., "read", "write", "bash") */
+  tool: string;
+  /** Session identifier */
+  sessionID: string;
+  /** Unique call identifier */
+  callID: string;
+  /** Tool output */
+  output: string;
+  /** Tool metadata */
+  metadata?: any;
+}
+
+/**
+ * Captures a tool execution event and returns a MemoryEntry.
  * This is the main entry point for tool event capture.
  *
  * Features:
@@ -185,27 +186,28 @@ export function formatToolContent(
  * - Extracts file references from arguments
  * - Sanitizes content using privacy filters
  * - Creates MemoryEntry for storage
- * - Adds to buffer for batched writes
  *
- * @param input - Tool execution input from Opencode
- * @param buffer - EventBuffer for batched writes
- * @throws Never - all errors are caught and logged
+ * @param input - Tool execution input from Opencode SDK
+ * @param sessionId - Current session ID for metadata
+ * @returns MemoryEntry or null if capture fails
  */
 export function captureToolExecution(
-  input: ToolExecuteInput,
-  buffer: IEventBuffer
-): void {
+  input: ToolExecuteAfterInput,
+  sessionId: string
+): MemoryEntry | null {
   try {
     // Determine observation type
     const observationType = determineObservationType(input.tool);
 
     // Format content based on tool type
-    const formattedContent = formatToolContent(input.tool, input.args);
+    // Note: We use metadata.args for tool arguments since that's where they're stored
+    const args = input.metadata?.args || {};
+    const formattedContent = formatToolContent(input.tool, args);
 
     // Apply privacy filtering based on tool type
     let sanitizedContent: string;
-    if (input.tool === "bash" && input.args?.command) {
-      const sanitizedCommand = sanitizeBashCommand(String(input.args.command));
+    if (input.tool === "bash" && args.command) {
+      const sanitizedCommand = sanitizeBashCommand(String(args.command));
       if (sanitizedCommand === null) {
         sanitizedContent = "[REDACTED BASH COMMAND]";
       } else if (sanitizedCommand === "[REDACTED BASH COMMAND]") {
@@ -219,7 +221,7 @@ export function captureToolExecution(
     }
 
     // Extract file references
-    const files = extractFilesFromArgs(input.args || {});
+    const files = extractFilesFromArgs(args);
 
     // Create memory entry
     const entry: MemoryEntry = {
@@ -228,23 +230,20 @@ export function captureToolExecution(
       content: sanitizedContent,
       createdAt: Date.now(),
       metadata: {
-        sessionId: input.sessionID,
+        sessionId,
         tool: input.tool,
         summary: `${input.tool} executed`,
         files: files.length > 0 ? files : undefined,
       },
     };
 
-    // Add to buffer for batched write
-    buffer.add(entry);
-
-    // Debug logging would happen in caller (plugin.ts)
+    return entry;
   } catch (error) {
     // Never throw - graceful degradation
     console.error(
       "[ToolCapture] Failed to capture tool execution:",
       error instanceof Error ? error.message : String(error)
     );
-    // Continue without crashing Opencode
+    return null;
   }
 }

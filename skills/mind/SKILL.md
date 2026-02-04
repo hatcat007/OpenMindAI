@@ -9,34 +9,34 @@ You have access to a persistent memory system powered by Claude Mind. All your o
 
 ## How to Execute Memory Commands
 
-Use the bundled SDK scripts via Node.js (NOT the CLI). The scripts are at `${CLAUDE_PLUGIN_ROOT}/dist/scripts/`.
+Use the bundled SDK scripts via Bun (NOT the CLI). The scripts are at `/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/`.
 
 ### Search Memories
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/find.js" "<query>" [limit]
+bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/find.js" "<query>" [limit]
 ```
 
 Examples:
-- `node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/find.js" "authentication" 5`
-- `node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/find.js" "database schema" 10`
+- `bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/find.js" "authentication" 5`
+- `bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/find.js" "database schema" 10`
 
 ### Ask Questions
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/ask.js" "<question>"
+bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/ask.js" "<question>"
 ```
 
 Examples:
-- `node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/ask.js" "Why did we choose React?"`
-- `node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/ask.js" "What was the CORS solution?"`
+- `bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/ask.js" "Why did we choose React?"`
+- `bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/ask.js" "What was the CORS solution?"`
 
 ### View Statistics
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/stats.js"
+bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/stats.js"
 ```
 
 ### View Recent Memories
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dist/scripts/timeline.js" [count]
+bun "/Users/buddythacat/Documents/TOOLS/claude-brain/dist/scripts/timeline.js" [count]
 ```
 
 ## Memory Types
@@ -55,7 +55,7 @@ Memories are automatically classified into these types:
 
 ## File Location
 
-Your memory is stored at: `.claude/mind.mv2`
+Your memory is stored at: `.opencode/mind.mv2`
 
 This file is:
 - **Portable** - Copy it anywhere, share with teammates

@@ -18,6 +18,7 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:storage": "bun run src/scripts/test-storage.ts",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -38,11 +39,15 @@
     "bun": ">=1.0.0"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.1.49"
+    "@opencode-ai/plugin": "^0.0.0-beta-202602040726"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.1.51",
+    "opencode-ai": "^1.1.51"
   }
 }

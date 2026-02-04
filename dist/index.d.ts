@@ -6,47 +6,11 @@ import { Plugin } from '@opencode-ai/plugin';
  * Core plugin logic using @opencode-ai/plugin SDK.
  * Handles session lifecycle, event capture, and storage management.
  *
- * **CRITICAL IMPLEMENTATION NOTES:**
- *
- * 1. **Context Destructuring Pattern**
- *    The plugin receives a context object with destructured params.
- *    CORRECT: `async ({ client, directory, worktree }) => { ... }`
- *
- * 2. **Synchronous Storage**
- *    bun:sqlite uses SYNCHRONOUS API. No await needed for storage.
- *    CORRECT: `const storage = createStorage({ filePath }); storage.write(...)`
- *    WRONG: `await createStorage(...)` or `await storage.write(...)`
- *
- * 3. **Event Handler Patterns**
- *    - Use `session.created` for session start
- *    - Use `session.deleted` for cleanup (NOT session.idle)
- *    - Use `tool.execute.after` for post-tool capture
- *    - Always handle errors gracefully (never throw)
- *
- * 4. **Error Handling**
- *    Never throw from event handlers - log and continue gracefully.
- *
  * @module plugin
  */
 
 /**
  * Opencode Brain Plugin - Makes Opencode remember everything
- *
- * This plugin captures session context and makes it available across sessions.
- * It initializes storage on load, captures events during the session, and
- * cleans up gracefully when the session ends.
- *
- * @example
- * ```typescript
- * // In opencode.json:
- * {
- *   "plugin": ["opencode-brain"],
- *   "opencode-brain": {
- *     "storagePath": ".opencode/mind.mv2",
- *     "debug": false
- *   }
- * }
- * ```
  */
 declare const OpencodeBrainPlugin: Plugin;
 
@@ -254,20 +218,22 @@ declare const EventBuffer: typeof createEventBuffer;
  */
 
 /**
- * Input data from tool.execute.after event
+ * Input data from tool.execute.after event (OpenCode SDK format)
  */
-interface ToolExecuteInput {
+interface ToolExecuteAfterInput {
     /** Tool name (e.g., "read", "write", "bash") */
     tool: string;
     /** Session identifier */
     sessionID: string;
     /** Unique call identifier */
     callID: string;
-    /** Tool arguments */
-    args?: Record<string, unknown>;
+    /** Tool output */
+    output: string;
+    /** Tool metadata */
+    metadata?: any;
 }
 /**
- * Captures a tool execution event and adds it to the event buffer.
+ * Captures a tool execution event and returns a MemoryEntry.
  * This is the main entry point for tool event capture.
  *
  * Features:
@@ -275,13 +241,12 @@ interface ToolExecuteInput {
  * - Extracts file references from arguments
  * - Sanitizes content using privacy filters
  * - Creates MemoryEntry for storage
- * - Adds to buffer for batched writes
  *
- * @param input - Tool execution input from Opencode
- * @param buffer - EventBuffer for batched writes
- * @throws Never - all errors are caught and logged
+ * @param input - Tool execution input from Opencode SDK
+ * @param sessionId - Current session ID for metadata
+ * @returns MemoryEntry or null if capture fails
  */
-declare function captureToolExecution(input: ToolExecuteInput, buffer: IEventBuffer): void;
+declare function captureToolExecution(input: ToolExecuteAfterInput, sessionId: string): MemoryEntry | null;
 
 /**
  * File Capture Module
@@ -293,24 +258,25 @@ declare function captureToolExecution(input: ToolExecuteInput, buffer: IEventBuf
  */
 
 /**
- * Input for file edit capture
+ * File edited event from OpenCode SDK
  */
-interface FileEditInput {
+interface FileEditedEvent {
     /** Path of the file that was edited */
     filePath: string;
+    /** Session identifier */
+    sessionID?: string;
 }
 /**
- * Captures a file edit event to the event buffer.
+ * Captures a file edit event and returns a MemoryEntry.
  *
  * Checks if the file should be captured using privacy filtering,
- * then creates a MemoryEntry and adds it to the buffer.
+ * then creates a MemoryEntry.
  *
- * @param input - File edit input containing filePath
- * @param buffer - Event buffer to add the entry to
+ * @param event - File edited event from OpenCode SDK
  * @param sessionId - Current session ID for metadata
- * @returns true if captured, false if skipped due to exclusion
+ * @returns MemoryEntry or null if skipped/failed
  */
-declare function captureFileEdit(input: FileEditInput, buffer: IEventBuffer, sessionId: string): boolean;
+declare function captureFileEdit(event: FileEditedEvent, sessionId: string): MemoryEntry | null;
 
 /**
  * Error Capture Module
@@ -322,19 +288,28 @@ declare function captureFileEdit(input: FileEditInput, buffer: IEventBuffer, ses
  */
 
 /**
- * Captures a session error to the event buffer.
+ * Session error event from OpenCode SDK
+ */
+interface SessionErrorEvent {
+    /** Error that occurred */
+    error: Error;
+    /** Session identifier */
+    sessionID?: string;
+}
+/**
+ * Captures a session error and returns a MemoryEntry.
  *
  * Checks if the error message contains sensitive patterns,
- * then creates a MemoryEntry and adds it to the buffer.
+ * then creates a MemoryEntry.
  *
  * Note: This captures plugin-level errors, not tool errors
  * (tool errors are handled in tool-capture.ts).
  *
- * @param error - The error to capture
- * @param buffer - Event buffer to add the entry to
+ * @param event - Session error event from OpenCode SDK
  * @param sessionId - Current session ID for metadata
+ * @returns MemoryEntry or null if capture fails
  */
-declare function captureSessionError(error: Error, buffer: IEventBuffer, sessionId: string): void;
+declare function captureSessionError(event: SessionErrorEvent, sessionId: string): MemoryEntry | null;
 
 /**
  * Opencode Brain Plugin

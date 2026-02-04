@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach } from "bun:test";
-import { captureFileEdit } from "./file-capture.js";
-import { captureSessionError } from "./error-capture.js";
+import { captureFileEdit, type FileEditedEvent } from "./file-capture.js";
+import { captureSessionError, type SessionErrorEvent } from "./error-capture.js";
 import { createEventBuffer } from "./buffer.js";
 import type { IEventBuffer } from "./buffer.js";
 import type { MemoryEntry } from "../storage/storage-interface.js";
@@ -26,102 +26,105 @@ describe("captureFileEdit", () => {
     });
   });
 
+  // Helper to capture and add to buffer
+  const captureAndAdd = (event: FileEditedEvent, sessionId: string, buf: IEventBuffer) => {
+    const entry = captureFileEdit(event, sessionId);
+    if (entry) {
+      buf.add(entry);
+    }
+  };
+
   it("captures regular file edit", () => {
     const result = captureFileEdit(
       { filePath: "src/index.ts" },
-      buffer,
       "test-session-1"
     );
 
-    expect(result).toBe(true);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("refactor");
+    buffer.add(result!);
     expect(buffer.size()).toBe(1);
   });
 
-  it("returns true when captured", () => {
+  it("returns entry when captured", () => {
     const result = captureFileEdit(
       { filePath: "src/components/Button.tsx" },
-      buffer,
       "test-session-2"
     );
 
-    expect(result).toBe(true);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("refactor");
   });
 
   it("excludes .env file", () => {
-    const result = captureFileEdit({ filePath: ".env" }, buffer, "test-session");
+    const result = captureFileEdit({ filePath: ".env" }, "test-session");
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes .env.local", () => {
     const result = captureFileEdit(
       { filePath: ".env.local" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes .env.development.local", () => {
     const result = captureFileEdit(
       { filePath: ".env.development.local" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes .git directory", () => {
     const result = captureFileEdit(
       { filePath: ".git/config" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes secret files", () => {
     const result = captureFileEdit(
       { filePath: "config/secrets.json" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes .key files", () => {
     const result = captureFileEdit(
       { filePath: "ssh/id_rsa.key" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("excludes .pem files", () => {
     const result = captureFileEdit(
       { filePath: "certs/server.pem" },
-      buffer,
       "test-session"
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
     expect(buffer.size()).toBe(0);
   });
 
   it("sets correct type to refactor", () => {
-    captureFileEdit({ filePath: "src/index.ts" }, buffer, "test-session");
+    captureAndAdd({ filePath: "src/index.ts" }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries.length).toBe(1);
@@ -130,24 +133,24 @@ describe("captureFileEdit", () => {
   });
 
   it("includes session ID in metadata", () => {
-    captureFileEdit({ filePath: "src/index.ts" }, buffer, "session-abc-123");
+    captureAndAdd({ filePath: "src/index.ts" }, "session-abc-123", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.sessionId).toBe("session-abc-123");
   });
 
   it("includes file path in metadata.files", () => {
-    captureFileEdit({ filePath: "src/utils/helper.ts" }, buffer, "test-session");
+    captureAndAdd({ filePath: "src/utils/helper.ts" }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.files).toEqual(["src/utils/helper.ts"]);
   });
 
   it("includes file basename in summary", () => {
-    captureFileEdit(
+    captureAndAdd(
       { filePath: "src/components/MyComponent.tsx" },
-      buffer,
-      "test-session"
+      "test-session",
+      buffer
     );
     buffer.flush();
 
@@ -155,7 +158,7 @@ describe("captureFileEdit", () => {
   });
 
   it("handles missing slashes in path", () => {
-    captureFileEdit({ filePath: "file.txt" }, buffer, "test-session");
+    captureAndAdd({ filePath: "file.txt" }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.summary).toBe("Edited file.txt");
@@ -172,22 +175,24 @@ describe("captureFileEdit", () => {
     });
 
     // Add first entry (won't flush yet)
-    captureFileEdit({ filePath: "src/file1.ts" }, badBuffer, "test-session");
+    const entry1 = captureFileEdit({ filePath: "src/file1.ts" }, "test-session");
+    if (entry1) badBuffer.add(entry1);
 
     // Second entry triggers flush which throws, but should not crash plugin
     // The error is caught in EventBuffer, not in captureFileEdit
+    const entry2 = captureFileEdit({ filePath: "src/file2.ts" }, "test-session");
     expect(() => {
-      captureFileEdit({ filePath: "src/file2.ts" }, badBuffer, "test-session");
+      if (entry2) badBuffer.add(entry2);
     }).not.toThrow();
 
-    // First entry was still captured (added to buffer)
-    // Second entry was also added before flush
-    expect(badBuffer.size()).toBe(0); // Buffer cleared before flush error
+    // Buffer restores entries on flush failure to prevent data loss
+    // Both entries should still be in the buffer for retry
+    expect(badBuffer.size()).toBe(2);
   });
 
   it("generates unique IDs for each entry", () => {
-    captureFileEdit({ filePath: "src/file1.ts" }, buffer, "test-session");
-    captureFileEdit({ filePath: "src/file2.ts" }, buffer, "test-session");
+    captureAndAdd({ filePath: "src/file1.ts" }, "test-session", buffer);
+    captureAndAdd({ filePath: "src/file2.ts" }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.id).not.toBe(flushedEntries[0]![1]!.id);
@@ -195,7 +200,7 @@ describe("captureFileEdit", () => {
 
   it("sets createdAt timestamp", () => {
     const before = Date.now();
-    captureFileEdit({ filePath: "src/index.ts" }, buffer, "test-session");
+    captureAndAdd({ filePath: "src/index.ts" }, "test-session", buffer);
     const after = Date.now();
     buffer.flush();
 
@@ -218,44 +223,54 @@ describe("captureSessionError", () => {
     });
   });
 
+  // Helper to capture and add to buffer
+  const captureAndAdd = (event: SessionErrorEvent, sessionId: string, buf: IEventBuffer) => {
+    const entry = captureSessionError(event, sessionId);
+    if (entry) {
+      buf.add(entry);
+    }
+  };
+
   it("captures error to buffer", () => {
     const error = new Error("Test error message");
-    captureSessionError(error, buffer, "test-session");
+    const entry = captureSessionError({ error }, "test-session");
 
+    expect(entry).not.toBeNull();
+    buffer.add(entry!);
     expect(buffer.size()).toBe(1);
   });
 
   it("sets type to problem", () => {
-    captureSessionError(new Error("Test"), buffer, "test-session");
+    captureAndAdd({ error: new Error("Test") }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.type).toBe("problem");
   });
 
   it("includes error name in metadata", () => {
-    captureSessionError(new TypeError("Invalid type"), buffer, "test-session");
+    captureAndAdd({ error: new TypeError("Invalid type") }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.error).toBe("TypeError");
   });
 
   it("includes error message in content", () => {
-    captureSessionError(new Error("Something went wrong"), buffer, "test-session");
+    captureAndAdd({ error: new Error("Something went wrong") }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.content).toBe("Session error: Something went wrong");
   });
 
   it("includes session ID in metadata", () => {
-    captureSessionError(new Error("Test"), buffer, "error-session-123");
+    captureAndAdd({ error: new Error("Test") }, "error-session-123", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.sessionId).toBe("error-session-123");
   });
 
   it("generates unique IDs", () => {
-    captureSessionError(new Error("Error 1"), buffer, "session-1");
-    captureSessionError(new Error("Error 2"), buffer, "session-1");
+    captureAndAdd({ error: new Error("Error 1") }, "session-1", buffer);
+    captureAndAdd({ error: new Error("Error 2") }, "session-1", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.id).not.toBe(flushedEntries[0]![1]!.id);
@@ -270,15 +285,19 @@ describe("captureSessionError", () => {
       },
     });
 
-    // Should not throw
+    // captureSessionError returns entry, adding to buffer is separate
+    const entry = captureSessionError({ error: new Error("Test") }, "test-session");
+    expect(entry).not.toBeNull();
+
+    // Should not throw when adding
     expect(() => {
-      captureSessionError(new Error("Test"), badBuffer, "test-session");
+      if (entry) badBuffer.add(entry);
     }).not.toThrow();
   });
 
   it("redacts sensitive error messages", () => {
     const sensitiveError = new Error("password: secret123");
-    captureSessionError(sensitiveError, buffer, "test-session");
+    captureAndAdd({ error: sensitiveError }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.content).toBe("Session error: [REDACTED - contains sensitive data]");
@@ -287,14 +306,14 @@ describe("captureSessionError", () => {
 
   it("redacts API key errors", () => {
     const sensitiveError = new Error("api_key: sk-1234567890abcdef");
-    captureSessionError(sensitiveError, buffer, "test-session");
+    captureAndAdd({ error: sensitiveError }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.redacted).toBe(true);
   });
 
   it("does not redact safe error messages", () => {
-    captureSessionError(new Error("File not found"), buffer, "test-session");
+    captureAndAdd({ error: new Error("File not found") }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.redacted).toBeUndefined();
@@ -302,7 +321,7 @@ describe("captureSessionError", () => {
   });
 
   it("includes error summary", () => {
-    captureSessionError(new RangeError("Out of bounds"), buffer, "test-session");
+    captureAndAdd({ error: new RangeError("Out of bounds") }, "test-session", buffer);
     buffer.flush();
 
     expect(flushedEntries[0]![0]!.metadata.summary).toBe("Error: RangeError");
@@ -310,7 +329,7 @@ describe("captureSessionError", () => {
 
   it("sets createdAt timestamp", () => {
     const before = Date.now();
-    captureSessionError(new Error("Test"), buffer, "test-session");
+    captureAndAdd({ error: new Error("Test") }, "test-session", buffer);
     const after = Date.now();
     buffer.flush();
 
@@ -333,10 +352,23 @@ describe("Integration: File and Error Capture with Buffer", () => {
     });
   });
 
+  // Helpers to capture and add to buffer
+  const captureFileAndAdd = (event: FileEditedEvent, sessionId: string, buf: IEventBuffer) => {
+    const entry = captureFileEdit(event, sessionId);
+    if (entry) buf.add(entry);
+  };
+
+  const captureErrorAndAdd = (event: SessionErrorEvent, sessionId: string, buf: IEventBuffer) => {
+    const entry = captureSessionError(event, sessionId);
+    if (entry) buf.add(entry);
+  };
+
   it("file edit flows through buffer", () => {
-    captureFileEdit({ filePath: "src/app.ts" }, buffer, "session-1");
-    captureFileEdit({ filePath: "src/utils.ts" }, buffer, "session-1");
-    captureFileEdit({ filePath: ".env" }, buffer, "session-1"); // Should be excluded
+    captureFileAndAdd({ filePath: "src/app.ts" }, "session-1", buffer);
+    captureFileAndAdd({ filePath: "src/utils.ts" }, "session-1", buffer);
+    // .env should be excluded (returns null)
+    const envEntry = captureFileEdit({ filePath: ".env" }, "session-1");
+    expect(envEntry).toBeNull();
 
     expect(buffer.size()).toBe(2); // Only 2 captured
 
@@ -346,12 +378,12 @@ describe("Integration: File and Error Capture with Buffer", () => {
   });
 
   it("error flows through buffer", () => {
-    captureSessionError(new Error("Error 1"), buffer, "session-1");
-    captureSessionError(new Error("Error 2"), buffer, "session-1");
-    captureSessionError(
-      new Error("password: secret"),
-      buffer,
-      "session-1"
+    captureErrorAndAdd({ error: new Error("Error 1") }, "session-1", buffer);
+    captureErrorAndAdd({ error: new Error("Error 2") }, "session-1", buffer);
+    captureErrorAndAdd(
+      { error: new Error("password: secret") },
+      "session-1",
+      buffer
     ); // Redacted
 
     expect(buffer.size()).toBe(3);
@@ -368,9 +400,9 @@ describe("Integration: File and Error Capture with Buffer", () => {
   });
 
   it("mixed events flow through buffer", () => {
-    captureFileEdit({ filePath: "src/app.ts" }, buffer, "session-1");
-    captureSessionError(new Error("Test error"), buffer, "session-1");
-    captureFileEdit({ filePath: "src/lib.ts" }, buffer, "session-1");
+    captureFileAndAdd({ filePath: "src/app.ts" }, "session-1", buffer);
+    captureErrorAndAdd({ error: new Error("Test error") }, "session-1", buffer);
+    captureFileAndAdd({ filePath: "src/lib.ts" }, "session-1", buffer);
 
     expect(buffer.size()).toBe(3);
 
@@ -395,9 +427,11 @@ describe("Integration: File and Error Capture with Buffer", () => {
 
     // Add events
     for (let i = 0; i < 5; i++) {
-      captureFileEdit({ filePath: `src/file${i}.ts` }, persistBuffer, "session-1");
+      const entry = captureFileEdit({ filePath: `src/file${i}.ts` }, "session-1");
+      if (entry) persistBuffer.add(entry);
     }
-    captureSessionError(new Error("Critical error"), persistBuffer, "session-1");
+    const errorEntry = captureSessionError({ error: new Error("Critical error") }, "session-1");
+    if (errorEntry) persistBuffer.add(errorEntry);
 
     persistBuffer.flush();
 

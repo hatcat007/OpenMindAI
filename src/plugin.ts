@@ -4,55 +4,20 @@
  * Core plugin logic using @opencode-ai/plugin SDK.
  * Handles session lifecycle, event capture, and storage management.
  *
- * **CRITICAL IMPLEMENTATION NOTES:**
- *
- * 1. **Context Destructuring Pattern**
- *    The plugin receives a context object with destructured params.
- *    CORRECT: `async ({ client, directory, worktree }) => { ... }`
- *
- * 2. **Synchronous Storage**
- *    bun:sqlite uses SYNCHRONOUS API. No await needed for storage.
- *    CORRECT: `const storage = createStorage({ filePath }); storage.write(...)`
- *    WRONG: `await createStorage(...)` or `await storage.write(...)`
- *
- * 3. **Event Handler Patterns**
- *    - Use `session.created` for session start
- *    - Use `session.deleted` for cleanup (NOT session.idle)
- *    - Use `tool.execute.after` for post-tool capture
- *    - Always handle errors gracefully (never throw)
- *
- * 4. **Error Handling**
- *    Never throw from event handlers - log and continue gracefully.
- *
  * @module plugin
  */
 
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { createStorage } from "./storage/sqlite-storage.js";
-import { loadConfig, getStoragePath } from "./config.js";
+import { loadConfig, getStoragePath, validateStoragePath } from "./config.js";
 import { createEventBuffer } from "./events/buffer.js";
-import type { MemoryEntry } from "./storage/storage-interface.js";
-// import { captureToolExecution } from "./events/tool-capture.js";
-// import { captureFileEdit } from "./events/file-capture.js";
+import type { MemoryEntry, StorageInterface } from "./storage/storage-interface.js";
+import { captureToolExecution } from "./events/tool-capture.js";
+import { captureFileEdit } from "./events/file-capture.js";
+import { captureSessionError } from "./events/error-capture.js";
 
 /**
  * Opencode Brain Plugin - Makes Opencode remember everything
- *
- * This plugin captures session context and makes it available across sessions.
- * It initializes storage on load, captures events during the session, and
- * cleans up gracefully when the session ends.
- *
- * @example
- * ```typescript
- * // In opencode.json:
- * {
- *   "plugin": ["opencode-brain"],
- *   "opencode-brain": {
- *     "storagePath": ".opencode/mind.mv2",
- *     "debug": false
- *   }
- * }
- * ```
  */
 export const OpencodeBrainPlugin: Plugin = async ({
   client,
@@ -60,65 +25,102 @@ export const OpencodeBrainPlugin: Plugin = async ({
   worktree,
 }) => {
   console.log("[opencode-brain] Plugin starting...");
-  
-  // Load configuration with defaults (reads from file directly)
+
+  // Load configuration with defaults
   const config = loadConfig(directory);
   console.log("[opencode-brain] Config loaded:", { debug: config.debug, storagePath: config.storagePath });
 
-  // Determine storage path based on worktree (or directory as fallback)
-  const projectPath = worktree || directory;
+  // Determine storage path - use directory if worktree is root or not available
+  const projectPath = (worktree && worktree !== "/") ? worktree : directory;
   const storagePath = getStoragePath(projectPath, config);
+  console.log("[opencode-brain] Storage path:", storagePath);
 
-  // Track current session ID for event metadata
-  // let currentSessionId: string = "unknown";
+  // PRE-FLIGHT VALIDATION: Validate storage path before attempting to create database
+  console.log("[opencode-brain] Running pre-flight storage validation...");
+  const validation = validateStoragePath(storagePath);
 
-  // Initialize storage SYNCHRONOUSLY (bun:sqlite design)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let storage: any;
-  try {
-    storage = createStorage({ filePath: storagePath });
-    console.log("[opencode-brain] Storage initialized at", storagePath);
-  } catch (error) {
-    console.error(
-      "[opencode-brain] Failed to initialize storage:",
-      error instanceof Error ? error.message : String(error)
-    );
+  // Log all validation messages
+  for (const message of validation.messages) {
+    console.log(`[opencode-brain] ${message}`);
+  }
+
+  if (!validation.valid) {
+    console.error("[opencode-brain] ❌ STORAGE VALIDATION FAILED!");
+    console.error(`[opencode-brain] Error: ${validation.error}`);
+    console.error("[opencode-brain] Cannot initialize storage - plugin will run in read-only mode");
+
     // Return minimal hooks so Opencode doesn't get undefined
     return {
       config: async () => {},
-      event: async () => {},
+      "session.created": async () => {},
+      "session.deleted": async () => {},
+      "file.edited": async () => {},
+      "session.error": async () => {},
       "tool.execute.after": async () => {},
     };
   }
 
-  // Create event buffer for batched writes
+  console.log("[opencode-brain] ✓ Pre-flight validation passed");
+
+  // Track current session ID
+  let currentSessionId: string = "unknown";
+
+  // Initialize storage
+  let storage: StorageInterface | undefined;
+  try {
+    console.log("[opencode-brain] Creating storage instance...");
+    storage = createStorage({ filePath: storagePath });
+    console.log("[opencode-brain] ✓ Storage initialized successfully at", storagePath);
+
+    // Verify storage is working by checking stats
+    try {
+      const stats = storage.stats();
+      console.log(`[opencode-brain] ✓ Storage ready: ${stats.count} memories, ${(stats.sizeBytes / 1024).toFixed(2)} KB`);
+    } catch (statsError) {
+      console.warn("[opencode-brain] ⚠ Storage created but stats check failed:", statsError);
+    }
+  } catch (error) {
+    console.error("[opencode-brain] ❌ CRITICAL: Failed to initialize storage!");
+    console.error("[opencode-brain] Error type:", error instanceof Error ? error.constructor.name : typeof error);
+    console.error("[opencode-brain] Error message:", error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error("[opencode-brain] Stack trace:", error.stack);
+    }
+    console.error("[opencode-brain] Storage path was:", storagePath);
+
+    // Return minimal hooks so Opencode doesn't get undefined
+    return {
+      config: async () => {},
+      "session.created": async () => {},
+      "session.deleted": async () => {},
+      "file.edited": async () => {},
+      "session.error": async () => {},
+      "tool.execute.after": async () => {},
+    };
+  }
+
+  // Create event buffer
   const eventBuffer = createEventBuffer({
     maxSize: 50,
     flushIntervalMs: 5000,
     onFlush: (entries: MemoryEntry[]) => {
       try {
-        // Write all buffered entries to storage synchronously
         for (const entry of entries) {
           storage.write(entry.id, entry);
         }
-
         if (config.debug) {
-          console.log(`[opencode-brain] Flushed ${entries.length} entries to storage`);
+          console.log(`[opencode-brain] Flushed ${entries.length} entries`);
         }
       } catch (error) {
-        console.error(
-          "[opencode-brain] Failed to flush entries:",
-          error instanceof Error ? error.message : String(error)
-        );
+        console.error("[opencode-brain] Failed to flush:", error);
       }
     },
   });
 
-  // Start periodic flush timer
   eventBuffer.start();
   console.log("[opencode-brain] Event buffer created");
 
-  // Log initialization if debug mode enabled
+  // Log initialization
   if (config.debug) {
     try {
       const stats = storage.stats();
@@ -126,7 +128,7 @@ export const OpencodeBrainPlugin: Plugin = async ({
         body: {
           service: "opencode-brain",
           level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath} (${stats.count} memories)`,
+          message: `[opencode-brain] Storage at ${storagePath} (${stats.count} memories)`,
         },
       });
     } catch {
@@ -134,7 +136,7 @@ export const OpencodeBrainPlugin: Plugin = async ({
         body: {
           service: "opencode-brain",
           level: "info",
-          message: `[opencode-brain] Storage initialized at ${storagePath}`,
+          message: `[opencode-brain] Storage at ${storagePath}`,
         },
       });
     }
@@ -142,23 +144,119 @@ export const OpencodeBrainPlugin: Plugin = async ({
 
   console.log("[opencode-brain] Returning hooks...");
 
-  // Return minimal hooks to test if opencode loads without error
-  return {
+  // Return hooks using named hooks compatible with stable SDK
+  const hooks: Hooks = {
+    // Config hook (required by SDK v1.x)
     config: async () => {},
+
+    // Session created handler
+    "session.created": async ({ session }: { session: { id: string; slug: string; title: string } }) => {
+      try {
+        currentSessionId = session.id;
+        if (config.debug) {
+          const stats = storage.stats();
+          client.app.log({
+            body: {
+              service: "opencode-brain",
+              level: "info",
+              message: `Session ${session.id} started (${stats.count} memories)`,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Session created handler error:", error);
+      }
+    },
+
+    // Session deleted handler
+    "session.deleted": async ({ session }: { session: { id: string } }) => {
+      try {
+        if (config.debug) {
+          console.log(`[opencode-brain] Session ${session.id} ending`);
+        }
+        eventBuffer.stop({ flushRemaining: true });
+        storage?.close();
+        if (config.debug) {
+          console.log("[opencode-brain] Session ended, storage closed");
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Session deleted handler error:", error);
+      }
+    },
+
+    // File edited handler
+    "file.edited": async ({ file }: { file: { path: string; sessionID?: string } }) => {
+      try {
+        const entry = captureFileEdit({ filePath: file.path, sessionID: file.sessionID || currentSessionId }, currentSessionId);
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log(`[opencode-brain] Captured file edit: ${file.path}`);
+          }
+        }
+      } catch (error) {
+        console.error("[opencode-brain] File edited handler error:", error);
+      }
+    },
+
+    // Session error handler
+    "session.error": async ({ error, sessionID }: { error: { message: string; stack?: string }; sessionID?: string }) => {
+      try {
+        // Validate error object exists
+        if (!error) {
+          console.warn("[opencode-brain] Received session.error hook with no error object");
+          return;
+        }
+
+        const entry = captureSessionError(
+          {
+            error: new Error(error.message || "Unknown error"),
+            sessionID: sessionID || currentSessionId
+          },
+          currentSessionId
+        );
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log("[opencode-brain] Captured session error");
+          }
+        }
+      } catch (err) {
+        console.error("[opencode-brain] Session error handler error:", err);
+      }
+    },
+
+    // Tool execution handler
+    "tool.execute.after": async (input, output) => {
+      try {
+        const entry = captureToolExecution(
+          {
+            tool: input.tool,
+            sessionID: input.sessionID,
+            callID: input.callID,
+            output: output.output,
+            metadata: output.metadata,
+          },
+          currentSessionId
+        );
+
+        if (entry) {
+          eventBuffer.add(entry);
+          if (config.debug) {
+            console.log(`[opencode-brain] Captured ${entry.type}: ${entry.content.slice(0, 50)}...`);
+          }
+        }
+      } catch (error) {
+        console.error("[opencode-brain] Tool capture error:", error);
+      }
+    },
   };
+
+  return hooks;
 };
 
 /**
  * Factory function for creating the plugin
- *
- * This is the primary export used by Opencode's plugin system.
- *
- * @example
- * ```typescript
- * import { createPlugin } from "./plugin.js";
- *
- * export default createPlugin();
- * ```
  */
 export function createPlugin(): Plugin {
   return OpencodeBrainPlugin;

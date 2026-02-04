@@ -8,62 +8,58 @@
  */
 
 import type { MemoryEntry } from "../storage/storage-interface.js";
-import type { IEventBuffer } from "./buffer.js";
 import { shouldCaptureFile } from "../privacy/filter.js";
 
 /**
- * Input for file edit capture
+ * File edited event from OpenCode SDK
  */
-export interface FileEditInput {
+export interface FileEditedEvent {
   /** Path of the file that was edited */
   filePath: string;
+  /** Session identifier */
+  sessionID?: string;
 }
 
 /**
- * Captures a file edit event to the event buffer.
+ * Captures a file edit event and returns a MemoryEntry.
  *
  * Checks if the file should be captured using privacy filtering,
- * then creates a MemoryEntry and adds it to the buffer.
+ * then creates a MemoryEntry.
  *
- * @param input - File edit input containing filePath
- * @param buffer - Event buffer to add the entry to
+ * @param event - File edited event from OpenCode SDK
  * @param sessionId - Current session ID for metadata
- * @returns true if captured, false if skipped due to exclusion
+ * @returns MemoryEntry or null if skipped/failed
  */
 export function captureFileEdit(
-  input: FileEditInput,
-  buffer: IEventBuffer,
+  event: FileEditedEvent,
   sessionId: string
-): boolean {
+): MemoryEntry | null {
   try {
     // Check if file should be captured (privacy filtering)
-    if (!shouldCaptureFile(input.filePath)) {
-      return false; // Silently skip - no need to log for privacy
+    if (!shouldCaptureFile(event.filePath)) {
+      return null; // Silently skip - no need to log for privacy
     }
 
     // Create memory entry
     const entry: MemoryEntry = {
       id: crypto.randomUUID(),
       type: "refactor",
-      content: `File modified: ${input.filePath}`,
+      content: `File modified: ${event.filePath}`,
       createdAt: Date.now(),
       metadata: {
         sessionId,
-        summary: `Edited ${input.filePath.split("/").pop() || input.filePath}`,
-        files: [input.filePath],
+        summary: `Edited ${event.filePath.split("/").pop() || event.filePath}`,
+        files: [event.filePath],
       },
     };
 
-    // Add to buffer
-    buffer.add(entry);
-
-    return true;
+    return entry;
   } catch (error) {
     // Silent error handling - don't crash the plugin
     console.error(
       "[FileCapture] Failed to capture file edit:",
       error instanceof Error ? error.message : String(error)
     );
-    return false;
+    return null;
   }
 }
